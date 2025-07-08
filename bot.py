@@ -24,6 +24,7 @@ class Colors:
     RED = '\033[31m'
     WHITE = '\033[37m'
     BOLD = '\033[1m'
+    PURPLE = '\033[35m'
 
 class Logger:
     @staticmethod
@@ -665,18 +666,18 @@ class SatsumaBot:
         log.info(f"Total: {self.settings['total_transactions']}, Success: {self.settings['successful_transactions']}, Failed: {self.settings['failed_transactions']}")
 
     def display_menu(self):
-        print(f"\n{Colors.CYAN}=== Satsuma DeFi Bot Menu ==={Colors.RESET}")
-        print(f"{Colors.WHITE}1. Start Automated Swaps{Colors.RESET}")
-        print(f"{Colors.WHITE}2. Set Transaction Count{Colors.RESET}")
-        print(f"{Colors.WHITE}3. Manual Swap{Colors.RESET}")
-        print(f"{Colors.WHITE}4. Add Liquidity{Colors.RESET}")
-        print(f"{Colors.WHITE}5. Convert SUMA to veSUMA{Colors.RESET}")
-        print(f"{Colors.WHITE}6. Stake veSUMA{Colors.RESET}")
-        print(f"{Colors.WHITE}7. Vote with veSUMA{Colors.RESET}")
-        print(f"{Colors.WHITE}8. Show Balances{Colors.RESET}")
-        print(f"{Colors.WHITE}9. Transaction History{Colors.RESET}")
-        print(f"{Colors.WHITE}10. Exit{Colors.RESET}")
-        print(f"{Colors.CYAN}{'='*35}{Colors.RESET}")
+        print(f"\n{Colors.YELLOW}=== Satsuma DeFi Bot Menu ==={Colors.RESET}")
+        print(f"{Colors.YELLOW}1. Start Automated Swaps{Colors.RESET}")
+        print(f"{Colors.YELLOW}2. Set Transaction Count{Colors.RESET}")
+        print(f"{Colors.YELLOW}3. Manual Swap{Colors.RESET}")
+        print(f"{Colors.YELLOW}4. Add Liquidity{Colors.RESET}")
+        print(f"{Colors.YELLOW}5. Convert SUMA to veSUMA{Colors.RESET}")
+        print(f"{Colors.YELLOW}6. Stake veSUMA{Colors.RESET}")
+        print(f"{Colors.YELLOW}7. Vote with veSUMA{Colors.RESET}")
+        print(f"{Colors.YELLOW}8. Show Balances{Colors.RESET}")
+        print(f"{Colors.YELLOW}9. Transaction History{Colors.RESET}")
+        print(f"{Colors.YELLOW}10. Exit{Colors.RESET}")
+        print(f"{Colors.YELLOW}{'='*35}{Colors.RESET}")
 
     async def show_balances(self):
         try:
