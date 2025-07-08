@@ -710,13 +710,14 @@ async def automated_swaps(w3, config, private_keys, settings):
     except Exception as e:
         log.error(f"Automated swaps error: {str(e)}")
 
+from dotenv import load_dotenv
+load_dotenv()
+
 async def main():
     display_banner()
-    
     config = load_config()
     w3 = initialize_provider(config)
     private_keys = get_private_keys()
-    settings = load_user_settings()
     
     while True:
         try:
