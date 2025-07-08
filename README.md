@@ -55,7 +55,7 @@ For security, wallet private keys are stored in a `.env` file.
 Create a `.env` file in the root directory and add:
 
 ```env
-PRIVATE_KEY_1=0x28658a8399abcdef1234567890abcdef1234567890abcdef1234567890abcd
+PRIVATE_KEY_1=0x28658a8399abcdef1234567890ab
 PRIVATE_KEY_2=0xabcdefabcdefabcdef...
 ```
 
