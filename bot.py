@@ -1,3 +1,6 @@
+# === Satsuma Bot Merged ===
+# Menggabungkan fitur dari bot.py dan lp.py menjadi satu file
+
 from web3 import Web3
 from dotenv import load_dotenv
 import asyncio
@@ -7,6 +10,13 @@ import sys
 import os
 import json
 
+# === Load .env ===
+load_dotenv()
+
+# === Config File ===
+CONFIG_FILE = "satsuma_config.json"
+
+# === Terminal Colors ===
 class colors:
     reset = '\033[0m'
     cyan = '\033[36m'
@@ -20,43 +30,43 @@ class Logger:
     @staticmethod
     def info(msg):
         print(f"{colors.green}[✓] {msg}{colors.reset}")
-    
+
     @staticmethod
     def warn(msg):
         print(f"{colors.yellow}[!] {msg}{colors.reset}")
-    
+
     @staticmethod
     def error(msg):
         print(f"{colors.red}[✗] {msg}{colors.reset}")
-    
+
     @staticmethod
     def success(msg):
         print(f"{colors.green}[+] {msg}{colors.reset}")
-    
+
     @staticmethod
     def loading(msg):
         print(f"{colors.cyan}[⟳] {msg}{colors.reset}")
-    
+
     @staticmethod
     def step(msg):
         print(f"{colors.white}[➤] {msg}{colors.reset}")
-    
+
     @staticmethod
     def swap(msg):
         print(f"{colors.cyan}[↪️] {msg}{colors.reset}")
-    
+
     @staticmethod
     def swap_success(msg):
         print(f"{colors.green}[✅] {msg}{colors.reset}")
-    
+
     @staticmethod
     def liquidity(msg):
         print(f"{colors.cyan}[↪️] {msg}{colors.reset}")
-    
+
     @staticmethod
     def liquidity_success(msg):
         print(f"{colors.green}[✅] {msg}{colors.reset}")
-    
+
     @staticmethod
     def banner():
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -65,6 +75,25 @@ class Logger:
         print(" Satsuma zonaairdrop")
         print("-------------------------------------------------")
         print(f"{colors.reset}\n")
+
+log = Logger()
+
+# === CLI Menu ===
+def display_menu():
+    print(f"{colors.cyan}Select an action:{colors.reset}")
+    print(f"{colors.white}1. Start Automated Swaps{colors.reset}")
+    print(f"{colors.white}2. Set Transaction Count{colors.reset}")
+    print(f"{colors.white}3. Manual Swap{colors.reset}")
+    print(f"{colors.white}4. Add Liquidity{colors.reset}")
+    print(f"{colors.white}5. Convert SUMA to veSUMA{colors.reset}")
+    print(f"{colors.white}6. Stake veSUMA{colors.reset}")
+    print(f"{colors.white}7. Vote with veSUMA{colors.reset}")
+    print(f"{colors.white}8. Show Balances{colors.reset}")
+    print(f"{colors.white}9. Transaction History{colors.reset}")
+    print(f"{colors.white}10. Exit{colors.reset}")
+    return input(f"{colors.step('Select option (1-10): ')}")
+
+# TODO: Gabungkan fungsi-fungsi lainnya di bawah ini seperti approve, swap, liquidity, vote, dsb.
 
 log = Logger()
 
