@@ -56,7 +56,9 @@ class Logger:
         os.system('cls' if os.name == 'nt' else 'clear')
         print(f"{Colors.CYAN}{Colors.BOLD}")
         print("-" * 50)
-        print("         Satsuma DeFi Bot")
+        print(" Satsuma auto bot ")
+        print(" powered by Zona Airdrop ")
+        print(" Group @ZonaAirdr0p ")
         print("-" * 50)
         print(f"{Colors.RESET}\n")
 
