@@ -6,7 +6,7 @@ import time
 import sys
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Load environment variables
 load_dotenv()
@@ -109,649 +109,28 @@ ERC20_ABI = [
     }
 ]
 
-# UPDATED SWAP_ROUTER_ABI with the full ABI from the user
 SWAP_ROUTER_ABI = [
     {
         "inputs": [
             {
-                "internalType": "address",
-                "name": "_factory",
-                "type": "address"
-            },
-            {
-                "internalType": "address",
-                "name": "_WNativeToken",
-                "type": "address"
-            },
-            {
-                "internalType": "address",
-                "name": "_poolDeployer",
-                "type": "address"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "constructor"
-    },
-    {
-        "inputs": [],
-        "name": "WNativeToken",
-        "outputs": [
-            {
-                "internalType": "address",
-                "name": "",
-                "type": "address"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "int256",
-                "name": "amount0Delta",
-                "type": "int256"
-            },
-            {
-                "internalType": "int256",
-                "name": "amount1Delta",
-                "type": "int256"
-            },
-            {
-                "internalType": "bytes",
-                "name": "_data",
-                "type": "bytes"
-            }
-        ],
-        "name": "algebraSwapCallback",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
                 "components": [
-                    {
-                        "internalType": "bytes",
-                        "name": "path",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "recipient",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "deadline",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "amountIn",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "amountOutMinimum",
-                        "type": "uint256"
-                    }
+                    {"name": "tokenIn", "type": "address"},
+                    {"name": "tokenOut", "type": "address"},
+                    {"name": "deployer", "type": "address"},
+                    {"name": "recipient", "type": "address"},
+                    {"name": "deadline", "type": "uint256"},
+                    {"name": "amountIn", "type": "uint256"},
+                    {"name": "amountOutMinimum", "type": "uint256"},
+                    {"name": "limitSqrtPrice", "type": "uint160"}
                 ],
-                "internalType": "struct ISwapRouter.ExactInputParams",
-                "name": "params",
-                "type": "tuple"
-            }
-        ],
-        "name": "exactInput",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "amountOut",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "address",
-                        "name": "tokenIn",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "tokenOut",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "deployer",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "recipient",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "deadline",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "amountIn",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "amountOutMinimum",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint160",
-                        "name": "limitSqrtPrice",
-                        "type": "uint160"
-                    }
-                ],
-                "internalType": "struct ISwapRouter.ExactInputSingleParams",
                 "name": "params",
                 "type": "tuple"
             }
         ],
         "name": "exactInputSingle",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "amountOut",
-                "type": "uint256"
-            }
-        ],
+        "outputs": [{"name": "amountOut", "type": "uint256"}],
         "stateMutability": "payable",
         "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "address",
-                        "name": "tokenIn",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "tokenOut",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "deployer",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "recipient",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "deadline",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "amountIn",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "amountOutMinimum",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint160",
-                        "name": "limitSqrtPrice",
-                        "type": "uint160"
-                    }
-                ],
-                "internalType": "struct ISwapRouter.ExactInputSingleParams",
-                "name": "params",
-                "type": "tuple"
-            }
-        ],
-        "name": "exactInputSingleSupportingFeeOnTransferTokens",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "amountOut",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "bytes",
-                        "name": "path",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "recipient",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "deadline",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "amountOut",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "amountInMaximum",
-                        "type": "uint256"
-                    }
-                ],
-                "internalType": "struct ISwapRouter.ExactOutputParams",
-                "name": "params",
-                "type": "tuple"
-            }
-        ],
-        "name": "exactOutput",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "amountIn",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "address",
-                        "name": "tokenIn",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "tokenOut",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "deployer",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "recipient",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "deadline",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "amountOut",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "amountInMaximum",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint160",
-                        "name": "limitSqrtPrice",
-                        "type": "uint160"
-                    }
-                ],
-                "internalType": "struct ISwapRouter.ExactOutputSingleParams",
-                "name": "params",
-                "type": "tuple"
-            }
-        ],
-        "name": "exactOutputSingle",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "amountIn",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "factory",
-        "outputs": [
-            {
-                "internalType": "address",
-                "name": "",
-                "type": "address"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "bytes[]",
-                "name": "data",
-                "type": "bytes[]"
-            }
-        ],
-        "name": "multicall",
-        "outputs": [
-            {
-                "internalType": "bytes[]",
-                "name": "results",
-                "type": "bytes[]"
-            }
-        ],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "poolDeployer",
-        "outputs": [
-            {
-                "internalType": "address",
-                "name": "",
-                "type": "address"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "refundNativeToken",
-        "outputs": [],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "token",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "value",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint256",
-                "name": "deadline",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint8",
-                "name": "v",
-                "type": "uint8"
-            },
-            {
-                "internalType": "bytes32",
-                "name": "r",
-                "type": "bytes32"
-            },
-            {
-                "internalType": "bytes32",
-                "name": "s",
-                "type": "bytes32"
-            }
-        ],
-        "name": "selfPermit",
-        "outputs": [],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "token",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "nonce",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint256",
-                "name": "expiry",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint8",
-                "name": "v",
-                "type": "uint8"
-            },
-            {
-                "internalType": "bytes32",
-                "name": "r",
-                "type": "bytes32"
-            },
-            {
-                "internalType": "bytes32",
-                "name": "s",
-                "type": "bytes32"
-            }
-        ],
-        "name": "selfPermitAllowed",
-        "outputs": [],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "token",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "nonce",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint256",
-                "name": "expiry",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint8",
-                "name": "v",
-                "type": "uint8"
-            },
-            {
-                "internalType": "bytes32",
-                "name": "r",
-                "type": "bytes32"
-            },
-            {
-                "internalType": "bytes32",
-                "name": "s",
-                "type": "bytes32"
-            }
-        ],
-        "name": "selfPermitAllowedIfNecessary",
-        "outputs": [],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "token",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "value",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint256",
-                "name": "deadline",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint8",
-                "name": "v",
-                "type": "uint8"
-            },
-            {
-                "internalType": "bytes32",
-                "name": "r",
-                "type": "bytes32"
-            },
-            {
-                "internalType": "bytes32",
-                "name": "s",
-                "type": "bytes32"
-            }
-        ],
-        "name": "selfPermitIfNecessary",
-        "outputs": [],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "token",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "amountMinimum",
-                "type": "uint256"
-            },
-            {
-                "internalType": "address",
-                "name": "recipient",
-                "type": "address"
-            }
-        ],
-        "name": "sweepToken",
-        "outputs": [],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "token",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "amountMinimum",
-                "type": "uint256"
-            },
-            {
-                "internalType": "address",
-                "name": "recipient",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "feeBips",
-                "type": "uint256"
-            },
-            {
-                "internalType": "address",
-                "name": "feeRecipient",
-                "type": "address"
-            }
-        ],
-        "name": "sweepTokenWithFee",
-        "outputs": [],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "uint256",
-                "name": "amountMinimum",
-                "type": "uint256"
-            },
-            {
-                "internalType": "address",
-                "name": "recipient",
-                "type": "address"
-            }
-        ],
-        "name": "unwrapWNativeToken",
-        "outputs": [],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "uint256",
-                "name": "amountMinimum",
-                "type": "uint256"
-            },
-            {
-                "internalType": "address",
-                "name": "recipient",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "feeBips",
-                "type": "uint256"
-            },
-            {
-                "internalType": "address",
-                "name": "feeRecipient",
-                "type": "address"
-            }
-        ],
-        "name": "unwrapWNativeTokenWithFee",
-        "outputs": [],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "stateMutability": "payable",
-        "type": "receive"
     }
 ]
 
@@ -833,19 +212,8 @@ class SatsumaBot:
         self.transaction_history = []
 
     def load_config(self):
-        # Load from file first if it exists, otherwise use defaults
-        if os.path.exists(MAIN_CONFIG_FILE):
-            try:
-                with open(MAIN_CONFIG_FILE, 'r') as f:
-                    config = json.load(f)
-                    log.success(f"Loaded config from {MAIN_CONFIG_FILE}")
-                    return config
-            except Exception as e:
-                log.error(f"Failed to load config from {MAIN_CONFIG_FILE}: {str(e)}")
-
-        # Hardcoded defaults if file doesn't exist or fails to load
         config = {
-            "rpc": os.getenv("RPC_URL", "https://rpc.testnet.citrea.xyz"),
+            "rpc": "https://rpc.testnet.citrea.xyz",
             "chain_id": 5115,
             "symbol": "cBTC",
             "explorer": "https://explorer.testnet.citrea.xyz",
@@ -860,15 +228,13 @@ class SatsumaBot:
             "staking_contract": Web3.to_checksum_address("0x1234567890123456789012345678901234567892"),
             "gauge_address": Web3.to_checksum_address("0x1234567890123456789012345678901234567893")
         }
-
-        # Save the default config if the file didn't exist
+        
         try:
             with open(MAIN_CONFIG_FILE, 'w') as f:
                 json.dump(config, f, indent=2)
-            log.warn(f"Created default config file: {MAIN_CONFIG_FILE}")
         except Exception as e:
-            log.warn(f"Could not save default config file: {str(e)}")
-
+            log.warn(f"Could not save config file: {str(e)}")
+        
         return config
 
     def initialize_provider(self):
@@ -876,7 +242,7 @@ class SatsumaBot:
             w3 = Web3(Web3.HTTPProvider(self.config["rpc"]))
             if not w3.is_connected():
                 raise Exception("Failed to connect to RPC")
-
+            
             log.success(f"Connected to {self.config['rpc']}")
             log.info(f"Chain ID: {self.config['chain_id']}")
             return w3
@@ -887,23 +253,24 @@ class SatsumaBot:
     def get_private_keys(self):
         private_keys = []
         key = os.getenv("PRIVATE_KEY_1")
-
+        
         if not key or key == "your_private_key_here":
             log.error("No valid private key found in environment variables")
             log.info("Please set PRIVATE_KEY_1 in your .env file with your actual private key")
             
+            # For demo purposes, ask for private key input
             key = input("Enter your private key (without 0x prefix): ")
             if not key:
                 sys.exit(1)
-
+        
         try:
-            account = self.w3.eth.account.from_key(key)
+            account = Web3().eth.account.from_key(key)
             log.success(f"Loaded private key for address: {account.address}")
             private_keys.append(key)
         except Exception as e:
             log.error(f"Invalid private key: {str(e)}")
             sys.exit(1)
-
+        
         return private_keys
 
     def load_user_settings(self):
@@ -915,7 +282,7 @@ class SatsumaBot:
             "failed_transactions": 0,
             "last_transaction_time": None
         }
-
+        
         try:
             if os.path.exists(CONFIG_FILE):
                 with open(CONFIG_FILE, 'r') as f:
@@ -924,7 +291,7 @@ class SatsumaBot:
                     log.success(f"Loaded configuration: {user_settings['transaction_count']} transactions planned")
         except Exception as e:
             log.error(f"Failed to load settings: {str(e)}")
-
+        
         return user_settings
 
     def save_user_settings(self):
@@ -940,6 +307,44 @@ class SatsumaBot:
         max_amount = 0.0002
         random_amount = random.uniform(min_amount, max_amount)
         return round(random_amount, 6)
+
+    async def approve_token(self, account, token_address, spender_address, amount):
+        try:
+            token_contract = self.w3.eth.contract(address=token_address, abi=ERC20_ABI)
+            nonce = self.w3.eth.get_transaction_count(account.address)
+            
+            log.processing(f"Checking allowance for {token_address}")
+            
+            allowance = token_contract.functions.allowance(account.address, spender_address).call()
+            if allowance >= amount:
+                log.success("Sufficient allowance already exists")
+                return {"success": True, "nonce": nonce}
+            
+            log.processing("Sending approval transaction...")
+            
+            approve_tx = token_contract.functions.approve(spender_address, amount).build_transaction({
+                "from": account.address,
+                "gas": 100000,
+                "gasPrice": self.w3.eth.gas_price,
+                "nonce": nonce
+            })
+            
+            signed_tx = self.w3.eth.account.sign_transaction(approve_tx, private_key=account.key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            
+            log.processing("Waiting for approval confirmation...")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            
+            if receipt["status"] == 1:
+                log.success(f"Approval successful! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
+                return {"success": True, "nonce": nonce + 1}
+            else:
+                log.error("Approval transaction failed")
+                return {"success": False, "nonce": nonce}
+                
+        except Exception as e:
+            log.error(f"Approval error: {str(e)}")
+            return {"success": False, "nonce": nonce if 'nonce' in locals() else 0}
 
     async def get_token_balance(self, token_address, account_address):
         try:
@@ -961,59 +366,47 @@ class SatsumaBot:
     async def perform_swap(self, private_key, token_in, token_out, amount_in):
         try:
             account = self.w3.eth.account.from_key(private_key)
+            
             log.info(f"Performing swap for {account.address}")
             
-            token_in_contract = self.w3.eth.contract(address=token_in, abi=ERC20_ABI)
-            try:
-                decimals_in = token_in_contract.functions.decimals().call()
-                amount_in_wei = int(amount_in * (10 ** decimals_in))
-            except Exception:
-                log.warn("Could not get token decimals, assuming 18")
-                amount_in_wei = int(amount_in * 10**18)
+            amount_in_wei = int(amount_in * 10**18)
             
-            nonce = self.w3.eth.get_transaction_count(account.address)
-
-            router_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
+            # Approve token first
+            approval_result = await self.approve_token(account, token_in, self.config["swap_router"], amount_in_wei)
+            if not approval_result["success"]:
+                return {"success": False, "error": "Approval failed"}
             
-            log.processing("Building multicall payload...")
+            # Prepare swap transaction
+            swap_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
             
-            # Build calldata for token approval
-            # The approve function is from the ERC20 contract, but the call is encoded
-            # to be executed by the multicall function on the router contract.
-            approve_calldata = token_in_contract.functions.approve(
-                self.config["swap_router"], amount_in_wei
-            )._encode_transaction_data()
+            deadline = int(time.time()) + 300  # 5 minutes
             
-            # Construct the parameters tuple as a list for exactInputSingle
-            deadline = int(time.time()) + 300 # 5 minutes from now
-            params = [
-                token_in,
-                token_out,
-                account.address, # deployer
-                account.address, # recipient
-                deadline,
-                amount_in_wei,
-                0, # amountOutMinimum
-                0  # limitSqrtPrice
-            ]
-
-            # Build calldata for the actual swap using `exactInputSingle`
-            swap_calldata = router_contract.functions.exactInputSingle(params)._encode_transaction_data()
+            swap_params = {
+                "tokenIn": token_in,
+                "tokenOut": token_out,
+                "deployer": account.address,
+                "recipient": account.address,
+                "deadline": deadline,
+                "amountIn": amount_in_wei,
+                "amountOutMinimum": 0,
+                "limitSqrtPrice": 0
+            }
             
-            # Combine both calldata into a single multicall transaction
-            multicall_tx = router_contract.functions.multicall([approve_calldata, swap_calldata]).build_transaction({
+            nonce = approval_result["nonce"]
+            
+            swap_tx = swap_contract.functions.exactInputSingle(swap_params).build_transaction({
                 "from": account.address,
-                "gas": 600000,
+                "gas": 300000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
-
-            signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
+            
+            signed_tx = self.w3.eth.account.sign_transaction(swap_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-
-            log.processing("Waiting for multicall swap confirmation...")
+            
+            log.processing("Waiting for swap confirmation...")
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-
+            
             if receipt["status"] == 1:
                 log.success(f"Swap successful! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
                 self.transaction_history.append({
@@ -1026,7 +419,7 @@ class SatsumaBot:
             else:
                 log.error("Swap transaction failed")
                 return {"success": False, "error": "Transaction failed"}
-
+                
         except Exception as e:
             log.error(f"Swap error: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -1034,45 +427,43 @@ class SatsumaBot:
     async def add_liquidity(self, private_key, token_a, token_b, amount_a, amount_b):
         try:
             account = self.w3.eth.account.from_key(private_key)
+            
             log.info(f"Adding liquidity for {account.address}")
             
-            amount_a_wei = self.w3.to_wei(amount_a, 'ether')
-            amount_b_wei = self.w3.to_wei(amount_b, 'ether')
-
-            nonce = self.w3.eth.get_transaction_count(account.address)
-
-            # Build multicall payload
-            router_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
-            liquidity_router_contract = self.w3.eth.contract(address=self.config["liquidity_router"], abi=LIQUIDITY_ROUTER_ABI)
+            amount_a_wei = int(amount_a * 10**18)
+            amount_b_wei = int(amount_b * 10**18)
             
-            # 1. Approve token A
-            token_a_contract = self.w3.eth.contract(address=token_a, abi=ERC20_ABI)
-            approve_a_calldata = token_a_contract.functions.approve(self.config["liquidity_router"], amount_a_wei)._encode_transaction_data()
-
-            # 2. Approve token B
-            token_b_contract = self.w3.eth.contract(address=token_b, abi=ERC20_ABI)
-            approve_b_calldata = token_b_contract.functions.approve(self.config["liquidity_router"], amount_b_wei)._encode_transaction_data()
-
-            # 3. Add liquidity transaction
+            # Approve both tokens
+            approval_a = await self.approve_token(account, token_a, self.config["liquidity_router"], amount_a_wei)
+            if not approval_a["success"]:
+                return {"success": False, "error": "Token A approval failed"}
+            
+            approval_b = await self.approve_token(account, token_b, self.config["liquidity_router"], amount_b_wei)
+            if not approval_b["success"]:
+                return {"success": False, "error": "Token B approval failed"}
+            
+            # Add liquidity
+            liquidity_contract = self.w3.eth.contract(address=self.config["liquidity_router"], abi=LIQUIDITY_ROUTER_ABI)
+            
             deadline = int(time.time()) + 300
-            liquidity_calldata = liquidity_router_contract.functions.addLiquidity(
+            nonce = self.w3.eth.get_transaction_count(account.address)
+            
+            liquidity_tx = liquidity_contract.functions.addLiquidity(
                 token_a, token_b, account.address, account.address,
                 amount_a_wei, amount_b_wei, 0, 0, deadline
-            )._encode_transaction_data()
-
-            multicall_tx = router_contract.functions.multicall([approve_a_calldata, approve_b_calldata, liquidity_calldata]).build_transaction({
+            ).build_transaction({
                 "from": account.address,
-                "gas": 600000,
+                "gas": 400000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
-
-            signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
+            
+            signed_tx = self.w3.eth.account.sign_transaction(liquidity_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-
+            
             log.processing("Waiting for liquidity confirmation...")
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-
+            
             if receipt["status"] == 1:
                 log.success(f"Liquidity added successfully! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
                 self.transaction_history.append({
@@ -1085,7 +476,7 @@ class SatsumaBot:
             else:
                 log.error("Liquidity transaction failed")
                 return {"success": False, "error": "Transaction failed"}
-
+                
         except Exception as e:
             log.error(f"Liquidity error: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -1093,32 +484,30 @@ class SatsumaBot:
     async def convert_to_vesuma(self, private_key, amount, lock_time_days):
         try:
             account = self.w3.eth.account.from_key(private_key)
+            
             log.info(f"Converting SUMA to veSUMA for {account.address}")
             
-            amount_wei = self.w3.to_wei(amount, 'ether')
+            amount_wei = int(amount * 10**18)
             unlock_time = int(time.time()) + (lock_time_days * 24 * 60 * 60)
             
-            nonce = self.w3.eth.get_transaction_count(account.address)
-
-            # Build multicall payload
-            router_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
-
-            # 1. Approve SUMA token
-            suma_contract = self.w3.eth.contract(address=self.config["suma_address"], abi=ERC20_ABI)
-            approve_calldata = suma_contract.functions.approve(self.config["vesuma_address"], amount_wei)._encode_transaction_data()
+            # Approve SUMA token
+            approval_result = await self.approve_token(account, self.config["suma_address"], self.config["vesuma_address"], amount_wei)
+            if not approval_result["success"]:
+                return {"success": False, "error": "SUMA approval failed"}
             
-            # 2. Create lock
+            # Create lock
             vesuma_contract = self.w3.eth.contract(address=self.config["vesuma_address"], abi=VESUMA_ABI)
-            lock_calldata = vesuma_contract.functions.create_lock(amount_wei, unlock_time)._encode_transaction_data()
-
-            multicall_tx = router_contract.functions.multicall([approve_calldata, lock_calldata]).build_transaction({
+            
+            nonce = self.w3.eth.get_transaction_count(account.address)
+            
+            lock_tx = vesuma_contract.functions.create_lock(amount_wei, unlock_time).build_transaction({
                 "from": account.address,
-                "gas": 400000,
+                "gas": 200000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
-
-            signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
+            
+            signed_tx = self.w3.eth.account.sign_transaction(lock_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             
             log.processing("Waiting for veSUMA conversion confirmation...")
@@ -1144,31 +533,24 @@ class SatsumaBot:
     async def stake_vesuma(self, private_key, amount):
         try:
             account = self.w3.eth.account.from_key(private_key)
+            
             log.info(f"Staking veSUMA for {account.address}")
             
-            amount_wei = self.w3.to_wei(amount, 'ether')
+            amount_wei = int(amount * 10**18)
+            
+            # Stake veSUMA
+            staking_contract = self.w3.eth.contract(address=self.config["staking_contract"], abi=STAKING_ABI)
             
             nonce = self.w3.eth.get_transaction_count(account.address)
-
-            # Build multicall payload
-            router_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
-
-            # 1. Approve veSUMA token
-            vesuma_contract_erc20 = self.w3.eth.contract(address=self.config["vesuma_address"], abi=ERC20_ABI)
-            approve_calldata = vesuma_contract_erc20.functions.approve(self.config["staking_contract"], amount_wei)._encode_transaction_data()
-
-            # 2. Stake veSUMA
-            staking_contract = self.w3.eth.contract(address=self.config["staking_contract"], abi=STAKING_ABI)
-            stake_calldata = staking_contract.functions.stake(amount_wei)._encode_transaction_data()
-
-            multicall_tx = router_contract.functions.multicall([approve_calldata, stake_calldata]).build_transaction({
+            
+            stake_tx = staking_contract.functions.stake(amount_wei).build_transaction({
                 "from": account.address,
-                "gas": 400000,
+                "gas": 200000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
-
-            signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
+            
+            signed_tx = self.w3.eth.account.sign_transaction(stake_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             
             log.processing("Waiting for staking confirmation...")
@@ -1372,11 +754,8 @@ class SatsumaBot:
                 print(f"USDC: {self.config['usdc_address']}")
                 print(f"WCBTC: {self.config['wcbtc_address']}")
                 
-                token_in_input = input("Enter token in address (or 'usdc'/'wcbtc'): ").strip()
-                token_out_input = input("Enter token out address (or 'usdc'/'wcbtc'): ").strip()
-
-                token_in = self.config['usdc_address'] if token_in_input.lower() == 'usdc' else self.config['wcbtc_address'] if token_in_input.lower() == 'wcbtc' else Web3.to_checksum_address(token_in_input)
-                token_out = self.config['usdc_address'] if token_out_input.lower() == 'usdc' else self.config['wcbtc_address'] if token_out_input.lower() == 'wcbtc' else Web3.to_checksum_address(token_out_input)
+                token_in = input("Enter token in address: ").strip()
+                token_out = input("Enter token out address: ").strip()
                 
                 try:
                     amount = float(input("Enter amount: "))
@@ -1389,7 +768,7 @@ class SatsumaBot:
                     else:
                         log.error("Amount must be positive")
                 except ValueError:
-                    log.error("Invalid amount or address")
+                    log.error("Invalid amount")
             
             elif option == "4":
                 print(f"\n{Colors.CYAN}=== Add Liquidity ==={Colors.RESET}")
