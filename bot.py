@@ -111,106 +111,33 @@ ERC20_ABI = [
 
 SWAP_ROUTER_ABI = [
     {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "_factoryV2",
-                "type": "address"
-            },
-            {
-                "internalType": "address",
-                "name": "factoryV3",
-                "type": "address"
-            },
-            {
-                "internalType": "address",
-                "name": "_positionManager",
-                "type": "address"
-            },
-            {
-                "internalType": "address",
-                "name": "_WETH9",
-                "type": "address"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "constructor"
-    },
-    {
-        "inputs": [],
-        "name": "WETH9",
-        "outputs": [
-            {
-                "internalType": "address",
-                "name": "",
-                "type": "address"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "address",
-                        "name": "tokenIn",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "tokenOut",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint24",
-                        "name": "fee",
-                        "type": "uint24"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "recipient",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "deadline",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "amountIn",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "amountOutMinimum",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint160",
-                        "name": "sqrtPriceLimitX96",
-                        "type": "uint160"
-                    }
-                ],
-                "internalType": "struct ISwapRouter.ExactInputSingleParams",
-                "name": "params",
-                "type": "tuple"
-            }
-        ],
         "name": "exactInputSingle",
-        "outputs": [
+        "inputs": [
             {
-                "internalType": "uint256",
-                "name": "amountOut",
-                "type": "uint256"
+                "name": "params",
+                "type": "tuple",
+                "components": [
+                    {"name": "tokenIn", "type": "address"},
+                    {"name": "tokenOut", "type": "address"},
+                    {"name": "deployer", "type": "address"},
+                    {"name": "recipient", "type": "address"},
+                    {"name": "deadline", "type": "uint256"},
+                    {"name": "amountIn", "type": "uint256"},
+                    {"name": "amountOutMinimum", "type": "uint256"},
+                    {"name": "limitSqrtPrice", "type": "uint160"}
+                ]
             }
+        ],
+        "outputs": [
+            {"name": "amountOut", "type": "uint256"}
         ],
         "stateMutability": "payable",
         "type": "function"
     },
     {
+        "name": "multicall",
+        "type": "function",
+        "stateMutability": "payable",
         "inputs": [
             {
                 "internalType": "bytes[]",
@@ -218,15 +145,28 @@ SWAP_ROUTER_ABI = [
                 "type": "bytes[]"
             }
         ],
-        "name": "multicall",
         "outputs": [
             {
                 "internalType": "bytes[]",
                 "name": "results",
                 "type": "bytes[]"
             }
+        ]
+    }
+]
+
+UNISWAP_V3_FACTORY_ABI = [
+    {
+        "inputs": [
+            {"internalType": "address", "name": "tokenA", "type": "address"},
+            {"internalType": "address", "name": "tokenB", "type": "address"},
+            {"internalType": "uint24", "name": "fee", "type": "uint24"}
         ],
-        "stateMutability": "payable",
+        "name": "getPool",
+        "outputs": [
+            {"internalType": "address", "name": "pool", "type": "address"}
+        ],
+        "stateMutability": "view",
         "type": "function"
     }
 ]
@@ -298,12 +238,6 @@ STAKING_ABI = [
         "inputs": [{"name": "_amount", "type": "uint256"}],
         "outputs": [],
         "type": "function"
-    },
-    {
-        "name": "withdraw",
-        "inputs": [{"name": "_amount", "type": "uint256"}],
-        "outputs": [],
-        "type": "function"
     }
 ]
 
@@ -334,6 +268,7 @@ class SatsumaBot:
             "symbol": "cBTC",
             "explorer": "https://explorer.testnet.citrea.xyz",
             "swap_router": Web3.to_checksum_address("0x3012e9049d05b4b5369d690114d5a5861ebb85cb"),
+            "uniswap_v3_factory": Web3.to_checksum_address("0x2668e310036E7E9110B9670d8a5E5A8f44d8525b"),
             "liquidity_router": Web3.to_checksum_address("0x55a4669cd6895EA25C174F13E1b49d69B4481704"),
             "pool_address": Web3.to_checksum_address("0x080c376e6aB309fF1a861e1c3F91F27b8D4f1443"),
             "usdc_address": Web3.to_checksum_address("0x2C8abD2A528D19AFc33d2eBA507c0F405c131335"),
@@ -478,7 +413,7 @@ class SatsumaBot:
         except Exception as e:
             log.error(f"Error getting token balance: {str(e)}")
             return None
-
+    
     async def perform_swap(self, private_key, token_in, token_out, amount_in):
         try:
             account = self.w3.eth.account.from_key(private_key)
@@ -508,20 +443,25 @@ class SatsumaBot:
             
             deadline = int(time.time()) + 300  # 5 minutes
             
-            swap_params = (
+            # Mendefinisikan parameter untuk exactInputSingle
+            deployer = self.config["liquidity_router"]
+            params = (
                 token_in,
                 token_out,
-                3000,
+                deployer,
                 account.address,
                 deadline,
                 amount_in_wei,
-                0,
-                0
+                0,     # amountOutMinimum
+                0      # limitSqrtPrice
             )
 
-            nonce = approval_result["nonce"]
-            
-            swap_tx = swap_contract.functions.exactInputSingle(swap_params).build_transaction({
+            # Encode call ke exactInputSingle
+            encoded_call = swap_contract.encodeABI(fn_name="exactInputSingle", args=[params])
+
+            # Kirim via multicall
+            nonce = self.w3.eth.get_transaction_count(account.address)
+            swap_tx = swap_contract.functions.multicall([encoded_call]).build_transaction({
                 "from": account.address,
                 "gas": 300000,
                 "gasPrice": self.w3.eth.gas_price,
