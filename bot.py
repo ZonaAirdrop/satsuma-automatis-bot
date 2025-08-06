@@ -496,9 +496,9 @@ class SatsumaBot:
 
     # ... [rest of the code remains exactly the same] ...
 
-async def main():
+async def run():
     bot = SatsumaBot()
     await bot.run()
 
-if __name__ == "__main__":
-    asyncio.run(main())
+if __name__ == "__run__":
+    asyncio.run(run())
