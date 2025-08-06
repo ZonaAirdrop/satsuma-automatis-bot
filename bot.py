@@ -110,7 +110,6 @@ ERC20_ABI = [
 ]
 
 SWAP_ROUTER_ABI = [
-    [
     {
         "inputs": [
             {
