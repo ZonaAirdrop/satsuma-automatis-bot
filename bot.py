@@ -6,7 +6,7 @@ import time
 import sys
 import os
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -109,18 +109,16 @@ ERC20_ABI = [
     }
 ]
 
+# Updated SWAP_ROUTER_ABI with only multicall, as requested
 SWAP_ROUTER_ABI = [
     {
-                "inputs": [
-                    { "internalType": "uint256", "name": "collectionAndSelfcalls", "type": "uint256" },
-                    { "internalType": "bytes[]", "name": "data", "type": "bytes[]" }
-                ],
-                "name": "multicall",
-                "outputs": [],
-                "stateMutability": "nonpayable",
-                "type": "function",
-            }
-        ]
+        "inputs": [{"internalType": "bytes[]", "name": "data", "type": "bytes[]"}],
+        "name": "multicall",
+        "outputs": [{"internalType": "bytes[]", "name": "results", "type": "bytes[]"}],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+]
 
 LIQUIDITY_ROUTER_ABI = [
     {
@@ -200,8 +198,19 @@ class SatsumaBot:
         self.transaction_history = []
 
     def load_config(self):
+        # Load from file first if it exists, otherwise use defaults
+        if os.path.exists(MAIN_CONFIG_FILE):
+            try:
+                with open(MAIN_CONFIG_FILE, 'r') as f:
+                    config = json.load(f)
+                    log.success(f"Loaded config from {MAIN_CONFIG_FILE}")
+                    return config
+            except Exception as e:
+                log.error(f"Failed to load config from {MAIN_CONFIG_FILE}: {str(e)}")
+
+        # Hardcoded defaults if file doesn't exist or fails to load
         config = {
-            "rpc": "https://rpc.testnet.citrea.xyz",
+            "rpc": os.getenv("RPC_URL", "https://rpc.testnet.citrea.xyz"),
             "chain_id": 5115,
             "symbol": "cBTC",
             "explorer": "https://explorer.testnet.citrea.xyz",
@@ -216,13 +225,15 @@ class SatsumaBot:
             "staking_contract": Web3.to_checksum_address("0x1234567890123456789012345678901234567892"),
             "gauge_address": Web3.to_checksum_address("0x1234567890123456789012345678901234567893")
         }
-        
+
+        # Save the default config if the file didn't exist
         try:
             with open(MAIN_CONFIG_FILE, 'w') as f:
                 json.dump(config, f, indent=2)
+            log.warn(f"Created default config file: {MAIN_CONFIG_FILE}")
         except Exception as e:
-            log.warn(f"Could not save config file: {str(e)}")
-        
+            log.warn(f"Could not save default config file: {str(e)}")
+
         return config
 
     def initialize_provider(self):
@@ -230,7 +241,7 @@ class SatsumaBot:
             w3 = Web3(Web3.HTTPProvider(self.config["rpc"]))
             if not w3.is_connected():
                 raise Exception("Failed to connect to RPC")
-            
+
             log.success(f"Connected to {self.config['rpc']}")
             log.info(f"Chain ID: {self.config['chain_id']}")
             return w3
@@ -241,24 +252,20 @@ class SatsumaBot:
     def get_private_keys(self):
         private_keys = []
         key = os.getenv("PRIVATE_KEY_1")
-        
+
         if not key or key == "your_private_key_here":
             log.error("No valid private key found in environment variables")
             log.info("Please set PRIVATE_KEY_1 in your .env file with your actual private key")
-            
-            # For demo purposes, ask for private key input
-            key = input("Enter your private key (without 0x prefix): ")
-            if not key:
-                sys.exit(1)
-        
+            sys.exit(1)
+
         try:
-            account = Web3().eth.account.from_key(key)
+            account = self.w3.eth.account.from_key(key)
             log.success(f"Loaded private key for address: {account.address}")
             private_keys.append(key)
         except Exception as e:
             log.error(f"Invalid private key: {str(e)}")
             sys.exit(1)
-        
+
         return private_keys
 
     def load_user_settings(self):
@@ -270,7 +277,7 @@ class SatsumaBot:
             "failed_transactions": 0,
             "last_transaction_time": None
         }
-        
+
         try:
             if os.path.exists(CONFIG_FILE):
                 with open(CONFIG_FILE, 'r') as f:
@@ -279,7 +286,7 @@ class SatsumaBot:
                     log.success(f"Loaded configuration: {user_settings['transaction_count']} transactions planned")
         except Exception as e:
             log.error(f"Failed to load settings: {str(e)}")
-        
+
         return user_settings
 
     def save_user_settings(self):
@@ -296,10 +303,9 @@ class SatsumaBot:
         random_amount = random.uniform(min_amount, max_amount)
         return round(random_amount, 6)
 
-    async def approve_token(self, account, token_address, spender_address, amount):
+    async def approve_token(self, account, token_address, spender_address, amount, nonce):
         try:
             token_contract = self.w3.eth.contract(address=token_address, abi=ERC20_ABI)
-            nonce = self.w3.eth.get_transaction_count(account.address)
             
             log.processing(f"Checking allowance for {token_address}")
             
@@ -332,7 +338,7 @@ class SatsumaBot:
                 
         except Exception as e:
             log.error(f"Approval error: {str(e)}")
-            return {"success": False, "nonce": nonce if 'nonce' in locals() else 0}
+            return {"success": False, "nonce": nonce}
 
     async def get_token_balance(self, token_address, account_address):
         try:
@@ -354,47 +360,52 @@ class SatsumaBot:
     async def perform_swap(self, private_key, token_in, token_out, amount_in):
         try:
             account = self.w3.eth.account.from_key(private_key)
-            
             log.info(f"Performing swap for {account.address}")
             
-            amount_in_wei = int(amount_in * 10**18)
+            amount_in_wei = self.w3.to_wei(amount_in, 'ether')
+            nonce = self.w3.eth.get_transaction_count(account.address)
+
+            # Build multicall payload
+            router_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
             
-            # Approve token first
-            approval_result = await self.approve_token(account, token_in, self.config["swap_router"], amount_in_wei)
-            if not approval_result["success"]:
-                return {"success": False, "error": "Approval failed"}
-            
-            # Prepare swap transaction
-            swap_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
-            
-            deadline = int(time.time()) + 300  # 5 minutes
-            
-            swap_params = {
-                "tokenIn": token_in,
-                "tokenOut": token_out,
-                "deployer": account.address,
-                "recipient": account.address,
-                "deadline": deadline,
-                "amountIn": amount_in_wei,
-                "amountOutMinimum": 0,
-                "limitSqrtPrice": 0
-            }
-            
-            nonce = approval_result["nonce"]
-            
-            swap_tx = swap_contract.functions.exactInputSingle(swap_params).build_transaction({
+            # 1. Approve transaction
+            token_in_contract = self.w3.eth.contract(address=token_in, abi=ERC20_ABI)
+            approve_calldata = token_in_contract.functions.approve(self.config["swap_router"], amount_in_wei).build_transaction({
+                'nonce': nonce,
+                'gas': 100000,
+                'gasPrice': self.w3.eth.gas_price
+            })['data']
+
+            # 2. Swap transaction - THIS PART NEEDS TO BE UPDATED WITH THE CORRECT SWAP FUNCTION
+            # Example calldata, you must replace this with the actual swap function from the DEX
+            # For example, if the function is `swapExactTokensForTokens`, it would look like this:
+            #
+            # swap_calldata = router_contract.functions.swapExactTokensForTokens(
+            #     amount_in_wei, 0, [token_in, token_out], account.address, deadline
+            # ).build_transaction({
+            #     'nonce': nonce + 1,
+            #     'gas': 300000,
+            #     'gasPrice': self.w3.eth.gas_price
+            # })['data']
+            #
+            # Replace the placeholder below with the actual calldata for the new swap method.
+            swap_calldata = b'' 
+            log.warn("Placeholder for swap calldata. Please provide the correct calldata for the DEX's new swap function.")
+
+            # Combine into a single multicall transaction
+            multicall_tx = router_contract.functions.multicall([approve_calldata, swap_calldata]).build_transaction({
                 "from": account.address,
-                "gas": 300000,
+                "gas": 400000, # Increased gas limit for multicall
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
             
-            signed_tx = self.w3.eth.account.sign_transaction(swap_tx, private_key=private_key)
+            signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            
+
             log.processing("Waiting for swap confirmation...")
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            
+
             if receipt["status"] == 1:
                 log.success(f"Swap successful! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
                 self.transaction_history.append({
@@ -407,7 +418,7 @@ class SatsumaBot:
             else:
                 log.error("Swap transaction failed")
                 return {"success": False, "error": "Transaction failed"}
-                
+
         except Exception as e:
             log.error(f"Swap error: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -415,43 +426,58 @@ class SatsumaBot:
     async def add_liquidity(self, private_key, token_a, token_b, amount_a, amount_b):
         try:
             account = self.w3.eth.account.from_key(private_key)
-            
             log.info(f"Adding liquidity for {account.address}")
             
-            amount_a_wei = int(amount_a * 10**18)
-            amount_b_wei = int(amount_b * 10**18)
-            
-            # Approve both tokens
-            approval_a = await self.approve_token(account, token_a, self.config["liquidity_router"], amount_a_wei)
-            if not approval_a["success"]:
-                return {"success": False, "error": "Token A approval failed"}
-            
-            approval_b = await self.approve_token(account, token_b, self.config["liquidity_router"], amount_b_wei)
-            if not approval_b["success"]:
-                return {"success": False, "error": "Token B approval failed"}
-            
-            # Add liquidity
-            liquidity_contract = self.w3.eth.contract(address=self.config["liquidity_router"], abi=LIQUIDITY_ROUTER_ABI)
-            
-            deadline = int(time.time()) + 300
+            amount_a_wei = self.w3.to_wei(amount_a, 'ether')
+            amount_b_wei = self.w3.to_wei(amount_b, 'ether')
+
             nonce = self.w3.eth.get_transaction_count(account.address)
+
+            # Build multicall payload
+            router_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
             
-            liquidity_tx = liquidity_contract.functions.addLiquidity(
+            # 1. Approve token A
+            token_a_contract = self.w3.eth.contract(address=token_a, abi=ERC20_ABI)
+            approve_a_calldata = token_a_contract.functions.approve(self.config["liquidity_router"], amount_a_wei).build_transaction({
+                'nonce': nonce,
+                'gas': 100000,
+                'gasPrice': self.w3.eth.gas_price
+            })['data']
+
+            # 2. Approve token B
+            token_b_contract = self.w3.eth.contract(address=token_b, abi=ERC20_ABI)
+            approve_b_calldata = token_b_contract.functions.approve(self.config["liquidity_router"], amount_b_wei).build_transaction({
+                'nonce': nonce + 1,
+                'gas': 100000,
+                'gasPrice': self.w3.eth.gas_price
+            })['data']
+
+            # 3. Add liquidity transaction
+            liquidity_contract = self.w3.eth.contract(address=self.config["liquidity_router"], abi=LIQUIDITY_ROUTER_ABI)
+            deadline = int(time.time()) + 300
+            
+            liquidity_calldata = liquidity_contract.functions.addLiquidity(
                 token_a, token_b, account.address, account.address,
                 amount_a_wei, amount_b_wei, 0, 0, deadline
             ).build_transaction({
+                'nonce': nonce + 2,
+                'gas': 400000,
+                'gasPrice': self.w3.eth.gas_price
+            })['data']
+
+            multicall_tx = router_contract.functions.multicall([approve_a_calldata, approve_b_calldata, liquidity_calldata]).build_transaction({
                 "from": account.address,
-                "gas": 400000,
+                "gas": 600000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
-            
-            signed_tx = self.w3.eth.account.sign_transaction(liquidity_tx, private_key=private_key)
+
+            signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            
+
             log.processing("Waiting for liquidity confirmation...")
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            
+
             if receipt["status"] == 1:
                 log.success(f"Liquidity added successfully! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
                 self.transaction_history.append({
@@ -464,7 +490,7 @@ class SatsumaBot:
             else:
                 log.error("Liquidity transaction failed")
                 return {"success": False, "error": "Transaction failed"}
-                
+
         except Exception as e:
             log.error(f"Liquidity error: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -472,30 +498,40 @@ class SatsumaBot:
     async def convert_to_vesuma(self, private_key, amount, lock_time_days):
         try:
             account = self.w3.eth.account.from_key(private_key)
-            
             log.info(f"Converting SUMA to veSUMA for {account.address}")
             
-            amount_wei = int(amount * 10**18)
+            amount_wei = self.w3.to_wei(amount, 'ether')
             unlock_time = int(time.time()) + (lock_time_days * 24 * 60 * 60)
             
-            # Approve SUMA token
-            approval_result = await self.approve_token(account, self.config["suma_address"], self.config["vesuma_address"], amount_wei)
-            if not approval_result["success"]:
-                return {"success": False, "error": "SUMA approval failed"}
-            
-            # Create lock
-            vesuma_contract = self.w3.eth.contract(address=self.config["vesuma_address"], abi=VESUMA_ABI)
-            
             nonce = self.w3.eth.get_transaction_count(account.address)
+
+            # Build multicall payload
+            router_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
+
+            # 1. Approve SUMA token
+            suma_contract = self.w3.eth.contract(address=self.config["suma_address"], abi=ERC20_ABI)
+            approve_calldata = suma_contract.functions.approve(self.config["vesuma_address"], amount_wei).build_transaction({
+                'nonce': nonce,
+                'gas': 100000,
+                'gasPrice': self.w3.eth.gas_price
+            })['data']
             
-            lock_tx = vesuma_contract.functions.create_lock(amount_wei, unlock_time).build_transaction({
+            # 2. Create lock
+            vesuma_contract = self.w3.eth.contract(address=self.config["vesuma_address"], abi=VESUMA_ABI)
+            lock_calldata = vesuma_contract.functions.create_lock(amount_wei, unlock_time).build_transaction({
+                'nonce': nonce + 1,
+                'gas': 200000,
+                'gasPrice': self.w3.eth.gas_price
+            })['data']
+
+            multicall_tx = router_contract.functions.multicall([approve_calldata, lock_calldata]).build_transaction({
                 "from": account.address,
-                "gas": 200000,
+                "gas": 400000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
-            
-            signed_tx = self.w3.eth.account.sign_transaction(lock_tx, private_key=private_key)
+
+            signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             
             log.processing("Waiting for veSUMA conversion confirmation...")
@@ -521,24 +557,39 @@ class SatsumaBot:
     async def stake_vesuma(self, private_key, amount):
         try:
             account = self.w3.eth.account.from_key(private_key)
-            
             log.info(f"Staking veSUMA for {account.address}")
             
-            amount_wei = int(amount * 10**18)
-            
-            # Stake veSUMA
-            staking_contract = self.w3.eth.contract(address=self.config["staking_contract"], abi=STAKING_ABI)
+            amount_wei = self.w3.to_wei(amount, 'ether')
             
             nonce = self.w3.eth.get_transaction_count(account.address)
-            
-            stake_tx = staking_contract.functions.stake(amount_wei).build_transaction({
+
+            # Build multicall payload
+            router_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
+
+            # 1. Approve veSUMA token
+            vesuma_contract_erc20 = self.w3.eth.contract(address=self.config["vesuma_address"], abi=ERC20_ABI)
+            approve_calldata = vesuma_contract_erc20.functions.approve(self.config["staking_contract"], amount_wei).build_transaction({
+                'nonce': nonce,
+                'gas': 100000,
+                'gasPrice': self.w3.eth.gas_price
+            })['data']
+
+            # 2. Stake veSUMA
+            staking_contract = self.w3.eth.contract(address=self.config["staking_contract"], abi=STAKING_ABI)
+            stake_calldata = staking_contract.functions.stake(amount_wei).build_transaction({
+                'nonce': nonce + 1,
+                'gas': 200000,
+                'gasPrice': self.w3.eth.gas_price
+            })['data']
+
+            multicall_tx = router_contract.functions.multicall([approve_calldata, stake_calldata]).build_transaction({
                 "from": account.address,
-                "gas": 200000,
+                "gas": 400000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
-            
-            signed_tx = self.w3.eth.account.sign_transaction(stake_tx, private_key=private_key)
+
+            signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             
             log.processing("Waiting for staking confirmation...")
@@ -564,14 +615,12 @@ class SatsumaBot:
     async def vote_with_vesuma(self, private_key, gauge_address, weight):
         try:
             account = self.w3.eth.account.from_key(private_key)
-            
             log.info(f"Voting with veSUMA for {account.address}")
-            
-            # Vote with veSUMA
-            voting_contract = self.w3.eth.contract(address=self.config["voting_contract"], abi=VOTING_ABI)
             
             nonce = self.w3.eth.get_transaction_count(account.address)
             
+            # Vote with veSUMA
+            voting_contract = self.w3.eth.contract(address=self.config["voting_contract"], abi=VOTING_ABI)
             vote_tx = voting_contract.functions.vote(gauge_address, weight).build_transaction({
                 "from": account.address,
                 "gas": 200000,
