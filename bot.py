@@ -485,7 +485,18 @@ class SatsumaBot:
             
             log.info(f"Performing swap for {account.address}")
             
-            amount_in_wei = int(amount_in * 10**18)
+            amount_in_wei = self.w3.to_wei(amount_in, 'ether')
+            
+            # --- Periksa saldo token dan cBTC terlebih dahulu ---
+            cbtc_balance = self.w3.eth.get_balance(account.address)
+            if cbtc_balance < self.w3.to_wei(0.001, 'ether'): # Gas fee check (misalnya 0.001 cBTC)
+                log.error("Insufficient cBTC balance to pay for gas fees.")
+                return {"success": False, "error": "Insufficient cBTC balance"}
+            
+            token_in_balance = await self.get_token_balance(token_in, account.address)
+            if token_in_balance['balance'] < amount_in_wei:
+                log.error(f"Insufficient {token_in_balance['symbol']} balance. Have {token_in_balance['formatted']:.6f}, need {amount_in:.6f}")
+                return {"success": False, "error": f"Insufficient {token_in_balance['symbol']} balance"}
             
             # Approve token first
             approval_result = await self.approve_token(account, token_in, self.config["swap_router"], amount_in_wei)
@@ -513,14 +524,24 @@ class SatsumaBot:
             
             nonce = approval_result["nonce"]
             
-            # Use multicall to perform the swap
             multicall_tx = swap_contract.functions.multicall([swap_calldata]).build_transaction({
                 "from": account.address,
                 "gas": 300000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
-            
+
+            # --- Simulasikan transaksi sebelum mengirim ---
+            try:
+                log.processing("Simulating transaction...")
+                multicall_tx['value'] = 0 # No value is sent for a token-to-token swap
+                self.w3.eth.call(multicall_tx, block_identifier='latest')
+                log.success("Simulation successful. Transaction is likely to pass.")
+            except Exception as e:
+                log.error(f"Transaction simulation failed. Reason: {str(e)}")
+                return {"success": False, "error": str(e)}
+
+            # Send the transaction
             signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             
@@ -813,7 +834,7 @@ class SatsumaBot:
             
             print(f"\n{Colors.CYAN}=== Account Balances ==={Colors.RESET}")
             print(f"{Colors.WHITE}Address: {account.address}{Colors.RESET}")
-            print(f"{Colors.GREEN}ETH Balance: {eth_formatted:.6f} ETH{Colors.RESET}")
+            print(f"{Colors.GREEN}cBTC Balance: {eth_formatted:.6f} {self.config['symbol']}{Colors.RESET}")
             
             # Get token balances
             tokens = {
