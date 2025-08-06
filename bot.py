@@ -854,7 +854,7 @@ class SatsumaBot:
             "wcbtc_address": Web3.to_checksum_address("0x8d0c9d1c17ae5e40fff9be350f57840e9e66cd93"),
             "suma_address": Web3.to_checksum_address("0xdE4251dd68e1aD5865b14Dd527E54018767Af58a"),
             "s33_address": Web3.to_checksum_address("0xb93B80d59c2FB3eb23817d4A27841eF8788826f0"),
-            "vesuma_address": Web3.to_checksum_address("0x1234567890123456789012345678901234567890"),
+            "vesuma_address": Web3.to_checksum_address("0x97a4f684620D578312Dc9fFBc4b0EbD8E804ab4a"),
             "voting_contract": Web3.to_checksum_address("0x1234567890123456789012345678901234567891"),
             "staking_contract": Web3.to_checksum_address("0x1234567890123456789012345678901234567892"),
             "gauge_address": Web3.to_checksum_address("0x1234567890123456789012345678901234567893"),
