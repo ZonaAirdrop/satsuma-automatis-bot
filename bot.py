@@ -111,11 +111,8 @@ ERC20_ABI = [
 
 SWAP_ROUTER_ABI = [
     {
-        "name": "exactInputSingle",
         "inputs": [
             {
-                "name": "params",
-                "type": "tuple",
                 "components": [
                     {"name": "tokenIn", "type": "address"},
                     {"name": "tokenOut", "type": "address"},
@@ -125,48 +122,14 @@ SWAP_ROUTER_ABI = [
                     {"name": "amountIn", "type": "uint256"},
                     {"name": "amountOutMinimum", "type": "uint256"},
                     {"name": "limitSqrtPrice", "type": "uint160"}
-                ]
+                ],
+                "name": "params",
+                "type": "tuple"
             }
         ],
-        "outputs": [
-            {"name": "amountOut", "type": "uint256"}
-        ],
+        "name": "exactInputSingle",
+        "outputs": [{"name": "amountOut", "type": "uint256"}],
         "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "name": "multicall",
-        "type": "function",
-        "stateMutability": "payable",
-        "inputs": [
-            {
-                "internalType": "bytes[]",
-                "name": "data",
-                "type": "bytes[]"
-            }
-        ],
-        "outputs": [
-            {
-                "internalType": "bytes[]",
-                "name": "results",
-                "type": "bytes[]"
-            }
-        ]
-    }
-]
-
-UNISWAP_V3_FACTORY_ABI = [
-    {
-        "inputs": [
-            {"internalType": "address", "name": "tokenA", "type": "address"},
-            {"internalType": "address", "name": "tokenB", "type": "address"},
-            {"internalType": "uint24", "name": "fee", "type": "uint24"}
-        ],
-        "name": "getPool",
-        "outputs": [
-            {"internalType": "address", "name": "pool", "type": "address"}
-        ],
-        "stateMutability": "view",
         "type": "function"
     }
 ]
@@ -192,25 +155,6 @@ LIQUIDITY_ROUTER_ABI = [
         ],
         "stateMutability": "nonpayable",
         "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "bytes[]",
-                "name": "data",
-                "type": "bytes[]"
-            }
-        ],
-        "name": "multicall",
-        "outputs": [
-            {
-                "internalType": "bytes[]",
-                "name": "results",
-                "type": "bytes[]"
-            }
-        ],
-        "stateMutability": "payable",
-        "type": "function"
     }
 ]
 
@@ -235,6 +179,12 @@ VESUMA_ABI = [
 STAKING_ABI = [
     {
         "name": "stake",
+        "inputs": [{"name": "_amount", "type": "uint256"}],
+        "outputs": [],
+        "type": "function"
+    },
+    {
+        "name": "withdraw",
         "inputs": [{"name": "_amount", "type": "uint256"}],
         "outputs": [],
         "type": "function"
@@ -268,7 +218,6 @@ class SatsumaBot:
             "symbol": "cBTC",
             "explorer": "https://explorer.testnet.citrea.xyz",
             "swap_router": Web3.to_checksum_address("0x3012e9049d05b4b5369d690114d5a5861ebb85cb"),
-            "uniswap_v3_factory": Web3.to_checksum_address("0x2668e310036E7E9110B9670d8a5E5A8f44d8525b"),
             "liquidity_router": Web3.to_checksum_address("0x55a4669cd6895EA25C174F13E1b49d69B4481704"),
             "pool_address": Web3.to_checksum_address("0x080c376e6aB309fF1a861e1c3F91F27b8D4f1443"),
             "usdc_address": Web3.to_checksum_address("0x2C8abD2A528D19AFc33d2eBA507c0F405c131335"),
@@ -413,28 +362,14 @@ class SatsumaBot:
         except Exception as e:
             log.error(f"Error getting token balance: {str(e)}")
             return None
-    
+
     async def perform_swap(self, private_key, token_in, token_out, amount_in):
         try:
             account = self.w3.eth.account.from_key(private_key)
             
             log.info(f"Performing swap for {account.address}")
             
-            # Use decimals of the token being swapped in for correct amount conversion
-            token_in_contract = self.w3.eth.contract(address=token_in, abi=ERC20_ABI)
-            decimals_in = token_in_contract.functions.decimals().call()
-            amount_in_wei = int(amount_in * (10 ** decimals_in))
-            
-            # --- Periksa saldo token dan cBTC terlebih dahulu ---
-            cbtc_balance = self.w3.eth.get_balance(account.address)
-            if cbtc_balance < self.w3.to_wei(0.001, 'ether'): # Gas fee check (misalnya 0.001 cBTC)
-                log.error("Insufficient cBTC balance to pay for gas fees.")
-                return {"success": False, "error": "Insufficient cBTC balance"}
-            
-            token_in_balance_info = await self.get_token_balance(token_in, account.address)
-            if token_in_balance_info is None or token_in_balance_info['balance'] < amount_in_wei:
-                log.error(f"Insufficient {token_in_balance_info.get('symbol', 'token')} balance. Have {token_in_balance_info['formatted']:.6f}, need {amount_in:.6f}")
-                return {"success": False, "error": f"Insufficient {token_in_balance_info.get('symbol', 'token')} balance"}
+            amount_in_wei = int(amount_in * 10**18)
             
             # Approve token first
             approval_result = await self.approve_token(account, token_in, self.config["swap_router"], amount_in_wei)
@@ -446,43 +381,26 @@ class SatsumaBot:
             
             deadline = int(time.time()) + 300  # 5 minutes
             
-            deployer = self.config["liquidity_router"]
-            params = {
+            swap_params = {
                 "tokenIn": token_in,
                 "tokenOut": token_out,
-                "deployer": deployer,
+                "deployer": account.address,
                 "recipient": account.address,
                 "deadline": deadline,
                 "amountIn": amount_in_wei,
                 "amountOutMinimum": 0,
                 "limitSqrtPrice": 0
             }
-
-            # --- CORRECTION: Correctly encode the function call for exactInputSingle ---
-            exact_input_single_encoded = swap_contract.functions.exactInputSingle(params).encodeABI()
-
-            # Multicall expects an array of encoded calls
-            multicall_data = [exact_input_single_encoded]
-
-            nonce = self.w3.eth.get_transaction_count(account.address)
-            swap_tx = swap_contract.functions.multicall(multicall_data).build_transaction({
+            
+            nonce = approval_result["nonce"]
+            
+            swap_tx = swap_contract.functions.exactInputSingle(swap_params).build_transaction({
                 "from": account.address,
                 "gas": 300000,
                 "gasPrice": self.w3.eth.gas_price,
-                "nonce": nonce,
-                "value": 0  
+                "nonce": nonce
             })
-
-            # --- Simulasikan transaksi sebelum mengirim ---
-            try:
-                log.processing("Simulating transaction...")
-                self.w3.eth.call(swap_tx, block_identifier='latest')
-                log.success("Simulation successful. Transaction is likely to pass.")
-            except Exception as e:
-                log.error(f"Transaction simulation failed. Reason: {str(e)}")
-                return {"success": False, "error": str(e)}
-
-            # Send the transaction
+            
             signed_tx = self.w3.eth.account.sign_transaction(swap_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             
@@ -775,7 +693,7 @@ class SatsumaBot:
             
             print(f"\n{Colors.CYAN}=== Account Balances ==={Colors.RESET}")
             print(f"{Colors.WHITE}Address: {account.address}{Colors.RESET}")
-            print(f"{Colors.GREEN}cBTC Balance: {eth_formatted:.6f} {self.config['symbol']}{Colors.RESET}")
+            print(f"{Colors.GREEN}ETH Balance: {eth_formatted:.6f} ETH{Colors.RESET}")
             
             # Get token balances
             tokens = {
