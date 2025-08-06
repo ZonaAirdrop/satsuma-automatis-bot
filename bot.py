@@ -497,16 +497,16 @@ class SatsumaBot:
             
             deadline = int(time.time()) + 300  # 5 minutes
             
-            swap_params = {
-                "tokenIn": token_in,
-                "tokenOut": token_out,
-                "fee": 3000,
-                "recipient": account.address,
-                "deadline": deadline,
-                "amountIn": amount_in_wei,
-                "amountOutMinimum": 0,
-                "sqrtPriceLimitX96": 0
-            }
+            swap_params = (
+                token_in,
+                token_out,
+                3000,
+                account.address,
+                deadline,
+                amount_in_wei,
+                0,
+                0
+            )
             
             # Encode the single swap call
             swap_calldata = swap_contract.functions.exactInputSingle(swap_params)._encode_transaction_data()
