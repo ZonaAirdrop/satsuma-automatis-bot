@@ -115,16 +115,24 @@ SWAP_ROUTER_ABI = [
         "type": "function",
         "stateMutability": "payable",
         "inputs": [
-            {"name": "tokenIn", "type": "address"},
-            {"name": "tokenOut", "type": "address"},
-            {"name": "fee", "type": "uint24"},
-            {"name": "recipient", "type": "address"},
-            {"name": "deadline", "type": "uint256"},
-            {"name": "amountIn", "type": "uint256"},
-            {"name": "amountOutMinimum", "type": "uint256"},
-            {"name": "sqrtPriceLimitX96", "type": "uint160"}
+            {
+                "name": "params",
+                "type": "tuple",
+                "components": [
+                    {"name": "tokenIn", "type": "address"},
+                    {"name": "tokenOut", "type": "address"},
+                    {"name": "fee", "type": "uint24"},
+                    {"name": "recipient", "type": "address"},
+                    {"name": "deadline", "type": "uint256"},
+                    {"name": "amountIn", "type": "uint256"},
+                    {"name": "amountOutMinimum", "type": "uint256"},
+                    {"name": "sqrtPriceLimitX96", "type": "uint160"}
+                ]
+            }
         ],
-        "outputs": [{"name": "amountOut", "type": "uint256"}]
+        "outputs": [
+            {"name": "amountOut", "type": "uint256"}
+        ]
     },
     {
         "name": "multicall",
@@ -414,7 +422,7 @@ class SatsumaBot:
             
             amount_in_wei = self.w3.to_wei(amount_in, 'ether')
             
-            # Check token and cBTC balances first
+            # Check token and cBTC balances
             cbtc_balance = self.w3.eth.get_balance(account.address)
             if cbtc_balance < self.w3.to_wei(0.001, 'ether'): # Gas fee check
                 log.error("Insufficient cBTC balance to pay for gas fees.")
@@ -434,9 +442,8 @@ class SatsumaBot:
             swap_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
             
             deadline = int(time.time()) + 300  # 5 minutes
-            fee = 3000  # Standard 0.3% fee tier
+            fee = 3000  # 0.3% fee tier - adjust as needed
             
-            # Build the exactInputSingle parameters
             params = (
                 token_in,
                 token_out,
@@ -448,12 +455,9 @@ class SatsumaBot:
                 0   # sqrtPriceLimitX96
             )
             
-            # Get the function object
-            swap_func = swap_contract.functions.exactInputSingle(params)
-            
-            # Build the transaction
+            # Build transaction directly using exactInputSingle
             nonce = self.w3.eth.get_transaction_count(account.address)
-            swap_tx = swap_func.build_transaction({
+            swap_tx = swap_contract.functions.exactInputSingle(params).build_transaction({
                 "from": account.address,
                 "gas": 300000,
                 "gasPrice": self.w3.eth.gas_price,
@@ -494,11 +498,13 @@ class SatsumaBot:
             log.error(f"Swap error: {str(e)}")
             return {"success": False, "error": str(e)}
 
-    # ... [rest of the code remains exactly the same] ...
+    # ... (rest of the code remains exactly the same)
+    # All other methods (add_liquidity, convert_to_vesuma, stake_vesuma, vote_with_vesuma, etc.)
+    # should remain unchanged as they were working correctly
 
-async def run():
+async def main():
     bot = SatsumaBot()
     await bot.run()
 
-if __name__ == "__run__":
-    asyncio.run(run())
+if __name__ == "__main__":
+    asyncio.run(main())
