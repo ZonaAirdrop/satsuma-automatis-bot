@@ -443,22 +443,22 @@ class SatsumaBot:
             
             deadline = int(time.time()) + 300  # 5 minutes
             
-            # Siapkan parameter swap
+            # Siapkan parameter swap dalam bentuk dictionary
             deployer = self.config["liquidity_router"]
-            params = (
-                token_in,
-                token_out,
-                deployer,
-                account.address,
-                deadline,
-                amount_in_wei,
-                0,     # amountOutMinimum
-                0      # limitSqrtPrice
-            )
+            params = {
+                "tokenIn": token_in,
+                "tokenOut": token_out,
+                "deployer": deployer,
+                "recipient": account.address,
+                "deadline": deadline,
+                "amountIn": amount_in_wei,
+                "amountOutMinimum": 0,
+                "limitSqrtPrice": 0
+            }
 
             # Encode function call menjadi bytes
-            encoded_call = swap_contract.functions.exactInputSingle(params).encodeABI()
-
+            encoded_call = swap_contract.encodeABI(fn_name="exactInputSingle", args=[params])
+            
             # Bangun tx via multicall
             nonce = self.w3.eth.get_transaction_count(account.address)
             swap_tx = swap_contract.functions.multicall([encoded_call]).build_transaction({
