@@ -1,4 +1,4 @@
-# 🥷 Satsuma Automation Bot (BOT NOT WORK NO UPDATE) SKIP BOT 
+# 🥷 Satsuma Automation Bot 
 
 **Satsuma Automation Bot** is a Python bot designed to automate interactions with the [Satsuma](https://satsuma.xyz) platform.  
 With features like auto-swapping, staking, voting, and transaction history, it’s perfect for DeFi users looking for high efficiency.
