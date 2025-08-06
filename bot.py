@@ -1,4 +1,6 @@
 from web3 import Web3
+from web3.contract import Contract
+from eth_abi import encode
 from dotenv import load_dotenv
 import asyncio
 import random
@@ -6,18 +8,15 @@ import time
 import sys
 import os
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from colorama import init, Fore, Back, Style
 
-# Initialize colorama
 init(autoreset=True)
 load_dotenv()
 
-# Configuration files
 CONFIG_FILE = "satsuma_config.json"
 MAIN_CONFIG_FILE = "config.json"
 
-# Terminal Colors
 class Colors:
     RESET = Style.RESET_ALL
     BOLD = Style.BRIGHT
@@ -57,114 +56,23 @@ class Logger:
 
 log = Logger()
 
-# Contract ABIs
 ERC20_ABI = [
-    {
-        "constant": False,
-        "inputs": [
-            {"name": "spender", "type": "address"},
-            {"name": "amount", "type": "uint256"}
-        ],
-        "name": "approve",
-        "outputs": [{"name": "", "type": "bool"}],
-        "type": "function"
-    },
-    {
-        "constant": True,
-        "inputs": [{"name": "owner", "type": "address"}],
-        "name": "balanceOf",
-        "outputs": [{"name": "", "type": "uint256"}],
-        "type": "function"
-    },
-    {
-        "constant": True,
-        "inputs": [
-            {"name": "owner", "type": "address"},
-            {"name": "spender", "type": "address"}
-        ],
-        "name": "allowance",
-        "outputs": [{"name": "", "type": "uint256"}],
-        "type": "function"
-    },
-    {
-        "constant": True,
-        "inputs": [],
-        "name": "decimals",
-        "outputs": [{"name": "", "type": "uint8"}],
-        "type": "function"
-    },
-    {
-        "constant": True,
-        "inputs": [],
-        "name": "symbol",
-        "outputs": [{"name": "", "type": "string"}],
-        "type": "function"
-    }
+    {"constant":False,"inputs":[{"name":"spender","type":"address"},{"name":"amount","type":"uint256"}],"name":"approve","outputs":[{"name":"","type":"bool"}],"type":"function"},
+    {"constant":True,"inputs":[{"name":"owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"type":"function"},
+    {"constant":True,"inputs":[{"name":"owner","type":"address"},{"name":"spender","type":"address"}],"name":"allowance","outputs":[{"name":"","type":"uint256"}],"type":"function"},
+    {"constant":True,"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint8"}],"type":"function"},
+    {"constant":True,"inputs":[],"name":"symbol","outputs":[{"name":"","type":"string"}],"type":"function"}
 ]
 
 SWAP_ROUTER_ABI = [
-    # ExactInputSingle for WBTC->USDC
-    {
-        "inputs": [
-            {
-                "components": [
-                    {"name": "tokenIn", "type": "address"},
-                    {"name": "tokenOut", "type": "address"},
-                    {"name": "deployer", "type": "address"},
-                    {"name": "recipient", "type": "address"},
-                    {"name": "deadline", "type": "uint256"},
-                    {"name": "amountIn", "type": "uint256"},
-                    {"name": "amountOutMinimum", "type": "uint256"},
-                    {"name": "limitSqrtPrice", "type": "uint160"}
-                ],
-                "name": "params",
-                "type": "tuple"
-            }
-        ],
-        "name": "exactInputSingle",
-        "outputs": [{"name": "amountOut", "type": "uint256"}],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    # Multicall for complex swaps
-    {
-        "inputs": [{"name": "data", "type": "bytes[]"}],
-        "name": "multicall",
-        "outputs": [{"name": "results", "type": "bytes[]"}],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    # Callback
-    {
-        "inputs": [
-            {"name": "amount0Delta", "type": "int256"},
-            {"name": "amount1Delta", "type": "int256"},
-            {"name": "_data", "type": "bytes"}
-        ],
-        "name": "algebraSwapCallback",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    }
+    {"inputs":[{"components":[{"name":"tokenIn","type":"address"},{"name":"tokenOut","type":"address"},{"name":"deployer","type":"address"},{"name":"recipient","type":"address"},{"name":"deadline","type":"uint256"},{"name":"amountIn","type":"uint256"},{"name":"amountOutMinimum","type":"uint256"},{"name":"limitSqrtPrice","type":"uint160"}],"name":"params","type":"tuple"}],"name":"exactInputSingle","outputs":[{"name":"amountOut","type":"uint256"}],"stateMutability":"payable","type":"function"},
+    {"inputs":[{"name":"data","type":"bytes[]"}],"name":"multicall","outputs":[{"name":"results","type":"bytes[]"}],"stateMutability":"payable","type":"function"},
+    {"inputs":[{"name":"amount0Delta","type":"int256"},{"name":"amount1Delta","type":"int256"},{"name":"_data","type":"bytes"}],"name":"algebraSwapCallback","outputs":[],"stateMutability":"nonpayable","type":"function"}
 ]
 
 WRAPPER_ABI = [
-    {
-        "inputs": [],
-        "name": "deposit",
-        "outputs": [],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {"name": "amount", "type": "uint256"}
-        ],
-        "name": "withdraw",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    }
+    {"inputs":[],"name":"deposit","outputs":[],"stateMutability":"payable","type":"function"},
+    {"inputs":[{"name":"amount","type":"uint256"}],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"}
 ]
 
 class SatsumaBot:
@@ -188,19 +96,17 @@ class SatsumaBot:
             "wcbtc_address": Web3.to_checksum_address("0x8d0c9d1c17ae5e40fff9be350f57840e9e66cd93"),
             "suma_address": Web3.to_checksum_address("0xdE4251dd68e1aD5865b14Dd527E54018767Af58a"),
             "s33_address": Web3.to_checksum_address("0xb93B80d59c2FB3eb23817d4A27841eF8788826f0"),
-            "wrapper_address": Web3.to_checksum_address("0x8d0c9d1c17ae5e40fff9be350f57840e9e66cd93"),  # WCBTC is wrapper for CBTC
+            "wrapper_address": Web3.to_checksum_address("0x8d0c9d1c17ae5e40fff9be350f57840e9e66cd93"),
             "vesuma_address": Web3.to_checksum_address("0x1234567890123456789012345678901234567890"),
             "voting_contract": Web3.to_checksum_address("0x1234567890123456789012345678901234567891"),
             "staking_contract": Web3.to_checksum_address("0x1234567890123456789012345678901234567892"),
             "gauge_address": Web3.to_checksum_address("0x1234567890123456789012345678901234567893")
         }
-        
         try:
             with open(MAIN_CONFIG_FILE, 'w') as f:
                 json.dump(config, f, indent=2)
         except Exception as e:
             log.warn(f"Could not save config file: {str(e)}")
-        
         return config
 
     def initialize_provider(self):
@@ -208,7 +114,6 @@ class SatsumaBot:
             w3 = Web3(Web3.HTTPProvider(self.config["rpc"]))
             if not w3.is_connected():
                 raise Exception("Failed to connect to RPC")
-            
             log.success(f"Connected to {self.config['rpc']}")
             log.info(f"Chain ID: {self.config['chain_id']}")
             return w3
@@ -219,16 +124,12 @@ class SatsumaBot:
     def get_private_keys(self):
         private_keys = []
         key = os.getenv("PRIVATE_KEY_1")
-        
         if not key or key == "your_private_key_here":
             log.error("No valid private key found in environment variables")
-            log.info("Please set PRIVATE_KEY_1 in your .env file with your actual private key")
-            
-            # For demo purposes, ask for private key input
+            log.info("Please set PRIVATE_KEY_1 in your .env file")
             key = input("Enter your private key (without 0x prefix): ")
             if not key:
                 sys.exit(1)
-        
         try:
             account = Web3().eth.account.from_key(key)
             log.success(f"Loaded private key for address: {account.address}")
@@ -236,7 +137,6 @@ class SatsumaBot:
         except Exception as e:
             log.error(f"Invalid private key: {str(e)}")
             sys.exit(1)
-        
         return private_keys
 
     def load_user_settings(self):
@@ -248,7 +148,6 @@ class SatsumaBot:
             "failed_transactions": 0,
             "last_transaction_time": None
         }
-        
         try:
             if os.path.exists(CONFIG_FILE):
                 with open(CONFIG_FILE, 'r') as f:
@@ -257,7 +156,6 @@ class SatsumaBot:
                     log.success(f"Loaded configuration: {user_settings['transaction_count']} transactions planned")
         except Exception as e:
             log.error(f"Failed to load settings: {str(e)}")
-        
         return user_settings
 
     def save_user_settings(self):
@@ -278,36 +176,28 @@ class SatsumaBot:
         try:
             token_contract = self.w3.eth.contract(address=token_address, abi=ERC20_ABI)
             nonce = self.w3.eth.get_transaction_count(account.address)
-            
             log.loading(f"Checking allowance for {token_address}")
-            
             allowance = token_contract.functions.allowance(account.address, spender_address).call()
             if allowance >= amount:
                 log.success("Sufficient allowance already exists")
                 return {"success": True, "nonce": nonce}
-            
             log.loading("Sending approval transaction...")
-            
             approve_tx = token_contract.functions.approve(spender_address, amount).build_transaction({
                 "from": account.address,
                 "gas": 100000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
-            
             signed_tx = self.w3.eth.account.sign_transaction(approve_tx, private_key=account.key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            
             log.loading("Waiting for approval confirmation...")
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            
             if receipt["status"] == 1:
                 log.actionSuccess(f"Approval successful! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
                 return {"success": True, "nonce": nonce + 1}
             else:
                 log.error("Approval transaction failed")
                 return {"success": False, "nonce": nonce}
-                
         except Exception as e:
             log.error(f"Approval error: {str(e)}")
             return {"success": False, "nonce": nonce if 'nonce' in locals() else 0}
@@ -318,7 +208,6 @@ class SatsumaBot:
             balance = token_contract.functions.balanceOf(account_address).call()
             decimals = token_contract.functions.decimals().call()
             symbol = token_contract.functions.symbol().call()
-            
             return {
                 "balance": balance,
                 "decimals": decimals,
@@ -332,78 +221,57 @@ class SatsumaBot:
     async def perform_swap(self, private_key, token_in, token_out, amount_in):
         try:
             account = self.w3.eth.account.from_key(private_key)
-            
-            log.info(f"Performing swap for {account.address}")
-            
             amount_in_wei = int(amount_in * 10**18)
-            
-            # Approve token first
             approval_result = await self.approve_token(account, token_in, self.config["swap_router"], amount_in_wei)
             if not approval_result["success"]:
                 return {"success": False, "error": "Approval failed"}
             
             swap_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
-            deadline = int(time.time()) + 300  # 5 minutes
+            deadline = int(time.time()) + 300
             
-            # Determine which swap method to use based on token pair
             if (token_in.lower() == self.config["wcbtc_address"].lower() and 
                 token_out.lower() == self.config["usdc_address"].lower()):
-                # WBTC -> USDC uses exactInputSingle
-                swap_params = {
-                    "tokenIn": token_in,
-                    "tokenOut": token_out,
-                    "deployer": account.address,
-                    "recipient": account.address,
-                    "deadline": deadline,
-                    "amountIn": amount_in_wei,
-                    "amountOutMinimum": 0,
-                    "limitSqrtPrice": 0
-                }
-                
-                nonce = approval_result["nonce"]
-                
+                swap_params = (
+                    token_in,
+                    token_out,
+                    account.address,
+                    account.address,
+                    deadline,
+                    amount_in_wei,
+                    0,
+                    0
+                )
                 swap_tx = swap_contract.functions.exactInputSingle(swap_params).build_transaction({
                     "from": account.address,
+                    "value": 0,
                     "gas": 300000,
                     "gasPrice": self.w3.eth.gas_price,
-                    "nonce": nonce
+                    "nonce": approval_result["nonce"]
                 })
             else:
-                # All other swaps use multicall
-                # For simplicity, we'll just encode a single swap in the multicall
-                # In a real implementation, you might have more complex routing
-                swap_params = {
-                    "tokenIn": token_in,
-                    "tokenOut": token_out,
-                    "deployer": account.address,
-                    "recipient": account.address,
-                    "deadline": deadline,
-                    "amountIn": amount_in_wei,
-                    "amountOutMinimum": 0,
-                    "limitSqrtPrice": 0
-                }
-                
-                nonce = approval_result["nonce"]
-                
-                # Encode the swap as a multicall
-                swap_data = swap_contract.encodeABI(
-                    fn_name="exactInputSingle",
-                    args=[swap_params]
+                swap_params = (
+                    token_in,
+                    token_out,
+                    account.address,
+                    account.address,
+                    deadline,
+                    amount_in_wei,
+                    0,
+                    0
                 )
-                
+                swap_data = swap_contract.encodeABI(fn_name="exactInputSingle", args=[swap_params])
                 swap_tx = swap_contract.functions.multicall([swap_data]).build_transaction({
                     "from": account.address,
-                    "gas": 400000,  # Higher gas for multicall
+                    "value": 0,
+                    "gas": 400000,
                     "gasPrice": self.w3.eth.gas_price,
-                    "nonce": nonce
+                    "nonce": approval_result["nonce"]
                 })
             
             signed_tx = self.w3.eth.account.sign_transaction(swap_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            
             log.loading("Waiting for swap confirmation...")
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            
             if receipt["status"] == 1:
                 log.actionSuccess(f"Swap successful! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
                 self.transaction_history.append({
@@ -416,7 +284,6 @@ class SatsumaBot:
             else:
                 log.error("Swap transaction failed")
                 return {"success": False, "error": "Transaction failed"}
-                
         except Exception as e:
             log.error(f"Swap error: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -425,14 +292,8 @@ class SatsumaBot:
         try:
             account = self.w3.eth.account.from_key(private_key)
             amount_wei = self.w3.to_wei(amount, 'ether')
-            
-            wrapper_contract = self.w3.eth.contract(
-                address=self.config["wrapper_address"],
-                abi=WRAPPER_ABI
-            )
-            
+            wrapper_contract = self.w3.eth.contract(address=self.config["wrapper_address"], abi=WRAPPER_ABI)
             nonce = self.w3.eth.get_transaction_count(account.address)
-            
             wrap_tx = wrapper_contract.functions.deposit().build_transaction({
                 "from": account.address,
                 "value": amount_wei,
@@ -440,13 +301,10 @@ class SatsumaBot:
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
-            
             signed_tx = self.w3.eth.account.sign_transaction(wrap_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            
             log.loading("Waiting for wrap confirmation...")
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            
             if receipt["status"] == 1:
                 log.actionSuccess(f"Wrap successful! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
                 self.transaction_history.append({
@@ -459,7 +317,6 @@ class SatsumaBot:
             else:
                 log.error("Wrap transaction failed")
                 return {"success": False, "error": "Transaction failed"}
-                
         except Exception as e:
             log.error(f"Wrap error: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -467,39 +324,22 @@ class SatsumaBot:
     async def unwrap_wcbtc(self, private_key, amount):
         try:
             account = self.w3.eth.account.from_key(private_key)
-            amount_wei = int(amount * 10**18)  # Assuming WBTC has 18 decimals
-            
-            # First approve the wrapper to spend WBTC
-            approval_result = await self.approve_token(
-                account,
-                self.config["wcbtc_address"],
-                self.config["wrapper_address"],
-                amount_wei
-            )
-            
+            amount_wei = int(amount * 10**18)
+            approval_result = await self.approve_token(account, self.config["wcbtc_address"], self.config["wrapper_address"], amount_wei)
             if not approval_result["success"]:
                 return {"success": False, "error": "Approval failed"}
-            
-            wrapper_contract = self.w3.eth.contract(
-                address=self.config["wrapper_address"],
-                abi=WRAPPER_ABI
-            )
-            
+            wrapper_contract = self.w3.eth.contract(address=self.config["wrapper_address"], abi=WRAPPER_ABI)
             nonce = approval_result["nonce"]
-            
             unwrap_tx = wrapper_contract.functions.withdraw(amount_wei).build_transaction({
                 "from": account.address,
                 "gas": 200000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
-            
             signed_tx = self.w3.eth.account.sign_transaction(unwrap_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            
             log.loading("Waiting for unwrap confirmation...")
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            
             if receipt["status"] == 1:
                 log.actionSuccess(f"Unwrap successful! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
                 self.transaction_history.append({
@@ -512,10 +352,44 @@ class SatsumaBot:
             else:
                 log.error("Unwrap transaction failed")
                 return {"success": False, "error": "Transaction failed"}
-                
         except Exception as e:
             log.error(f"Unwrap error: {str(e)}")
             return {"success": False, "error": str(e)}
+
+    async def start_automated_swaps(self):
+        if self.settings["transaction_count"] == 0:
+            log.error("No transactions configured")
+            return
+        log.info(f"Starting automated swaps with {self.settings['transaction_count']} transactions")
+        tokens = [self.config["usdc_address"], self.config["wcbtc_address"]]
+        for i in range(self.settings["transaction_count"]):
+            try:
+                token_in = random.choice(tokens)
+                token_out = random.choice([t for t in tokens if t != token_in])
+                amount = self.generate_random_amount()
+                private_key = random.choice(self.private_keys)
+                log.info(f"Transaction {i+1}/{self.settings['transaction_count']}")
+                result = await self.perform_swap(private_key, token_in, token_out, amount)
+                if result["success"]:
+                    self.settings["successful_transactions"] += 1
+                    log.success(f"Swap {i+1} completed successfully")
+                else:
+                    self.settings["failed_transactions"] += 1
+                    log.error(f"Swap {i+1} failed: {result.get('error', 'Unknown error')}")
+                self.settings["total_transactions"] += 1
+                self.settings["last_transaction_time"] = datetime.now().isoformat()
+                self.save_user_settings()
+                delay = random.uniform(5, 15)
+                log.info(f"Waiting {delay:.1f} seconds before next transaction...")
+                await asyncio.sleep(delay)
+            except Exception as e:
+                log.error(f"Error in transaction {i+1}: {str(e)}")
+                self.settings["failed_transactions"] += 1
+                self.settings["total_transactions"] += 1
+                self.save_user_settings()
+                continue
+        log.success("Automated swaps completed!")
+        log.info(f"Total: {self.settings['total_transactions']}, Success: {self.settings['successful_transactions']}, Failed: {self.settings['failed_transactions']}")
 
     def display_menu(self):
         print(f"\n{Colors.YELLOW}=== Satsuma DeFi Bot Menu ==={Colors.RESET}")
@@ -533,11 +407,49 @@ class SatsumaBot:
         print(f"{Colors.YELLOW}12. Exit{Colors.RESET}")
         print(f"{Colors.YELLOW}{'='*35}{Colors.RESET}")
 
+    async def show_balances(self):
+        try:
+            account = self.w3.eth.account.from_key(self.private_keys[0])
+            log.info(f"Showing balances for {account.address}")
+            eth_balance = self.w3.eth.get_balance(account.address)
+            eth_formatted = self.w3.from_wei(eth_balance, 'ether')
+            print(f"\n{Colors.CYAN}=== Account Balances ==={Colors.RESET}")
+            print(f"{Colors.WHITE}Address: {account.address}{Colors.RESET}")
+            print(f"{Colors.GREEN}ETH Balance: {eth_formatted:.6f} ETH{Colors.RESET}")
+            tokens = {
+                "USDC": self.config["usdc_address"],
+                "WCBTC": self.config["wcbtc_address"],
+                "SUMA": self.config["suma_address"],
+                "S33": self.config["s33_address"]
+            }
+            for symbol, address in tokens.items():
+                balance_info = await self.get_token_balance(address, account.address)
+                if balance_info:
+                    print(f"{Colors.GREEN}{symbol} Balance: {balance_info['formatted']:.6f} {balance_info['symbol']}{Colors.RESET}")
+                else:
+                    print(f"{Colors.RED}{symbol} Balance: Error fetching balance{Colors.RESET}")
+            print(f"{Colors.CYAN}{'='*35}{Colors.RESET}")
+        except Exception as e:
+            log.error(f"Error showing balances: {str(e)}")
+
+    def show_transaction_history(self):
+        if not self.transaction_history:
+            log.info("No transaction history available")
+            return
+        print(f"\n{Colors.CYAN}=== Transaction History ==={Colors.RESET}")
+        for i, tx in enumerate(self.transaction_history[-10:], 1):
+            status_color = Colors.GREEN if tx["status"] == "success" else Colors.RED
+            print(f"{Colors.WHITE}{i}. {tx['type'].upper()}{Colors.RESET}")
+            print(f"   Status: {status_color}{tx['status']}{Colors.RESET}")
+            print(f"   Hash: {Colors.CYAN}{tx['tx_hash']}{Colors.RESET}")
+            print(f"   Time: {Colors.YELLOW}{tx['timestamp']}{Colors.RESET}")
+            print()
+        print(f"{Colors.CYAN}{'='*35}{Colors.RESET}")
+
     async def handle_menu_option(self, option):
         try:
             if option == "1":
                 await self.start_automated_swaps()
-            
             elif option == "2":
                 try:
                     count = int(input("Enter transaction count: "))
@@ -549,7 +461,6 @@ class SatsumaBot:
                         log.error("Transaction count must be positive")
                 except ValueError:
                     log.error("Invalid transaction count")
-            
             elif option == "3":
                 print(f"\n{Colors.CYAN}=== Manual Swap ==={Colors.RESET}")
                 print("Token addresses:")
@@ -557,10 +468,8 @@ class SatsumaBot:
                 print(f"WCBTC: {self.config['wcbtc_address']}")
                 print(f"SUMA: {self.config['suma_address']}")
                 print(f"S33: {self.config['s33_address']}")
-                
                 token_in = input("Enter token in address: ").strip()
                 token_out = input("Enter token out address: ").strip()
-                
                 try:
                     amount = float(input("Enter amount: "))
                     if amount > 0:
@@ -573,7 +482,6 @@ class SatsumaBot:
                         log.error("Amount must be positive")
                 except ValueError:
                     log.error("Invalid amount")
-            
             elif option == "8":
                 print(f"\n{Colors.CYAN}=== Wrap CBTC to WCBTC ==={Colors.RESET}")
                 try:
@@ -588,7 +496,6 @@ class SatsumaBot:
                         log.error("Amount must be positive")
                 except ValueError:
                     log.error("Invalid amount")
-            
             elif option == "9":
                 print(f"\n{Colors.CYAN}=== Unwrap WCBTC to CBTC ==={Colors.RESET}")
                 try:
@@ -603,37 +510,31 @@ class SatsumaBot:
                         log.error("Amount must be positive")
                 except ValueError:
                     log.error("Invalid amount")
-            
-            # ... (rest of the menu options remain similar)
-
+            elif option == "10":
+                await self.show_balances()
+            elif option == "11":
+                self.show_transaction_history()
             elif option == "12":
                 log.info("Exiting Satsuma Bot...")
                 return False
-            
             else:
-                log.error("Invalid option. Please choose 1-12.")
-        
+                log.error("Invalid option")
         except Exception as e:
             log.error(f"Unexpected error: {str(e)}")
-        
         return True
 
     async def run(self):
         self.display_welcome_screen()
         log.success("Satsuma DeFi Bot initialized successfully!")
-        
         while True:
             try:
                 self.display_menu()
                 choice = input(f"{Colors.WHITE}[➤] Select option (1-12): {Colors.RESET}").strip()
-                
                 if not choice:
                     continue
-                
                 should_continue = await self.handle_menu_option(choice)
                 if not should_continue:
                     break
-                
             except KeyboardInterrupt:
                 log.info("\nBot stopped by user")
                 break
