@@ -111,28 +111,16 @@ ERC20_ABI = [
 
 SWAP_ROUTER_ABI = [
     {
-        "inputs": [
-            {
-                "components": [
-                    {"name": "tokenIn", "type": "address"},
-                    {"name": "tokenOut", "type": "address"},
-                    {"name": "deployer", "type": "address"},
-                    {"name": "recipient", "type": "address"},
-                    {"name": "deadline", "type": "uint256"},
-                    {"name": "amountIn", "type": "uint256"},
-                    {"name": "amountOutMinimum", "type": "uint256"},
-                    {"name": "limitSqrtPrice", "type": "uint160"}
+                "inputs": [
+                    { "internalType": "uint256", "name": "collectionAndSelfcalls", "type": "uint256" },
+                    { "internalType": "bytes[]", "name": "data", "type": "bytes[]" }
                 ],
-                "name": "params",
-                "type": "tuple"
+                "name": "multicall",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function",
             }
-        ],
-        "name": "exactInputSingle",
-        "outputs": [{"name": "amountOut", "type": "uint256"}],
-        "stateMutability": "payable",
-        "type": "function"
-    }
-]
+        ]
 
 LIQUIDITY_ROUTER_ABI = [
     {
