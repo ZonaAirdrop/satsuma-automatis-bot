@@ -337,43 +337,6 @@ class SatsumaBot:
         random_amount = random.uniform(min_amount, max_amount)
         return round(random_amount, 6)
 
-    async def approve_token(self, account, token_address, spender_address, amount, nonce):
-        try:
-            token_contract = self.w3.eth.contract(address=token_address, abi=ERC20_ABI)
-            
-            log.processing(f"Checking allowance for {token_address}")
-            
-            allowance = token_contract.functions.allowance(account.address, spender_address).call()
-            if allowance >= amount:
-                log.success("Sufficient allowance already exists")
-                return {"success": True, "nonce": nonce}
-            
-            log.processing("Sending approval transaction...")
-            
-            approve_tx = token_contract.functions.approve(spender_address, amount).build_transaction({
-                "from": account.address,
-                "gas": 100000,
-                "gasPrice": self.w3.eth.gas_price,
-                "nonce": nonce
-            })
-            
-            signed_tx = self.w3.eth.account.sign_transaction(approve_tx, private_key=account.key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            
-            log.processing("Waiting for approval confirmation...")
-            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            
-            if receipt["status"] == 1:
-                log.success(f"Approval successful! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
-                return {"success": True, "nonce": nonce + 1}
-            else:
-                log.error("Approval transaction failed")
-                return {"success": False, "nonce": nonce}
-                
-        except Exception as e:
-            log.error(f"Approval error: {str(e)}")
-            return {"success": False, "nonce": nonce}
-
     async def get_token_balance(self, token_address, account_address):
         try:
             token_contract = self.w3.eth.contract(address=token_address, abi=ERC20_ABI)
@@ -407,44 +370,54 @@ class SatsumaBot:
             
             nonce = self.w3.eth.get_transaction_count(account.address)
 
-            # Approve the swap router to spend the token
-            approve_result = await self.approve_token(account, token_in, self.config['swap_router'], amount_in_wei, nonce)
-            if not approve_result['success']:
-                log.error("Approval failed, cannot proceed with swap.")
-                return {"success": False, "error": "Approval failed"}
-
-            nonce = approve_result['nonce']
-
-            # Use the exactInputSingle function from the user-provided ABI
             router_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
             
-            log.processing("Sending swap transaction with exactInputSingle...")
-
+            log.processing("Building multicall payload...")
+            
+            # 1. Build calldata for token approval
+            token_in_contract = self.w3.eth.contract(address=token_in, abi=ERC20_ABI)
+            approve_calldata = token_in_contract.functions.approve(
+                self.config["swap_router"], amount_in_wei
+            ).build_transaction({
+                'nonce': nonce,
+                'gas': 100000,
+                'gasPrice': self.w3.eth.gas_price
+            })['data']
+            
+            # 2. Build calldata for the actual swap using `exactInputSingle`
             deadline = int(time.time()) + 300 # 5 minutes from now
             
             # Construct the parameters tuple for exactInputSingle
             params = {
                 "tokenIn": token_in,
                 "tokenOut": token_out,
-                "deployer": account.address,  # Assuming deployer is the same as recipient for this testnet
+                "deployer": account.address,
                 "recipient": account.address,
                 "deadline": deadline,
                 "amountIn": amount_in_wei,
                 "amountOutMinimum": 0,
                 "limitSqrtPrice": 0
             }
-            
-            swap_tx = router_contract.functions.exactInputSingle(params).build_transaction({
+
+            swap_calldata = router_contract.functions.exactInputSingle(params).build_transaction({
                 "from": account.address,
                 "gas": 400000,
                 "gasPrice": self.w3.eth.gas_price,
+                "nonce": nonce + 1 # Use a different nonce for each transaction within the multicall
+            })['data']
+            
+            # 3. Combine both calldata into a single multicall transaction
+            multicall_tx = router_contract.functions.multicall([approve_calldata, swap_calldata]).build_transaction({
+                "from": account.address,
+                "gas": 600000, # Increased gas limit for multicall with two calls
+                "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
-            
-            signed_tx = self.w3.eth.account.sign_transaction(swap_tx, private_key=private_key)
+
+            signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
-            log.processing("Waiting for swap confirmation...")
+            log.processing("Waiting for multicall swap confirmation...")
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
 
             if receipt["status"] == 1:
