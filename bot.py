@@ -459,7 +459,7 @@ class SatsumaBot:
             }
 
             # --- CORRECTION: Correctly encode the function call for exactInputSingle ---
-            exact_input_single_encoded = swap_contract.encodeABI(fn_name="exactInputSingle", args=[params])
+            exact_input_single_encoded = swap_contract.functions.exactInputSingle(params).encodeABI()
 
             # Multicall expects an array of encoded calls
             multicall_data = [exact_input_single_encoded]
