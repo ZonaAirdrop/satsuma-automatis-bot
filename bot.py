@@ -443,7 +443,7 @@ class SatsumaBot:
             
             deadline = int(time.time()) + 300  # 5 minutes
             
-            # Siapkan parameter swap dalam bentuk dictionary
+            # Parameter sebagai dict, karena ABI-nya bertipe 'tuple'
             deployer = self.config["liquidity_router"]
             params = {
                 "tokenIn": token_in,
@@ -455,9 +455,9 @@ class SatsumaBot:
                 "amountOutMinimum": 0,
                 "limitSqrtPrice": 0
             }
-
-            # Encode function call menjadi bytes
-            encoded_call = swap_contract.encodeABI(fn_name="exactInputSingle", args=[params])
+            
+            # Encode ABI: pakai .functions.nama_function(...).encodeABI()
+            encoded_call = swap_contract.functions.exactInputSingle(params).encodeABI()
             
             # Bangun tx via multicall
             nonce = self.w3.eth.get_transaction_count(account.address)
