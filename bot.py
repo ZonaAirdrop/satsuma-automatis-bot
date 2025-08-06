@@ -456,8 +456,8 @@ class SatsumaBot:
                 "limitSqrtPrice": 0
             }
             
-            # Encode ABI: pakai .functions.nama_function(...).encodeABI()
-            encoded_call = swap_contract.functions.exactInputSingle(params).encodeABI()
+            # Encode ABI: pakai .get_function_by_name().encodeABI()
+            encoded_call = swap_contract.get_function_by_name("exactInputSingle").encodeABI(args=[params])
             
             # Bangun tx via multicall
             nonce = self.w3.eth.get_transaction_count(account.address)
