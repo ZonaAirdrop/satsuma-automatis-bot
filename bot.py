@@ -209,6 +209,25 @@ SWAP_ROUTER_ABI = [
         ],
         "stateMutability": "payable",
         "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bytes[]",
+                "name": "data",
+                "type": "bytes[]"
+            }
+        ],
+        "name": "multicall",
+        "outputs": [
+            {
+                "internalType": "bytes[]",
+                "name": "results",
+                "type": "bytes[]"
+            }
+        ],
+        "stateMutability": "payable",
+        "type": "function"
     }
 ]
 
@@ -232,6 +251,25 @@ LIQUIDITY_ROUTER_ABI = [
             {"name": "liquidity", "type": "uint128"}
         ],
         "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bytes[]",
+                "name": "data",
+                "type": "bytes[]"
+            }
+        ],
+        "name": "multicall",
+        "outputs": [
+            {
+                "internalType": "bytes[]",
+                "name": "results",
+                "type": "bytes[]"
+            }
+        ],
+        "stateMutability": "payable",
         "type": "function"
     }
 ]
@@ -462,7 +500,7 @@ class SatsumaBot:
             swap_params = {
                 "tokenIn": token_in,
                 "tokenOut": token_out,
-                "fee": 3000, # Menambahkan parameter 'fee' yang hilang
+                "fee": 3000,
                 "recipient": account.address,
                 "deadline": deadline,
                 "amountIn": amount_in_wei,
@@ -470,16 +508,20 @@ class SatsumaBot:
                 "sqrtPriceLimitX96": 0
             }
             
+            # Encode the single swap call
+            swap_calldata = swap_contract.functions.exactInputSingle(swap_params)._encode_transaction_data()
+            
             nonce = approval_result["nonce"]
             
-            swap_tx = swap_contract.functions.exactInputSingle(swap_params).build_transaction({
+            # Use multicall to perform the swap
+            multicall_tx = swap_contract.functions.multicall([swap_calldata]).build_transaction({
                 "from": account.address,
                 "gas": 300000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
             
-            signed_tx = self.w3.eth.account.sign_transaction(swap_tx, private_key=private_key)
+            signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             
             log.processing("Waiting for swap confirmation...")
