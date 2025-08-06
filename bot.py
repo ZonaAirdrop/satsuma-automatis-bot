@@ -109,16 +109,11 @@ ERC20_ABI = [
     }
 ]
 
-# Updated SWAP_ROUTER_ABI with the user-provided ABI
+# Updated SWAP_ROUTER_ABI with the user-provided multicall function
 SWAP_ROUTER_ABI = [
     {
-        "name": "exactInputSingle",
-        "type": "function",
-        "stateMutability": "payable",
         "inputs": [
             {
-                "name": "params",
-                "type": "tuple",
                 "components": [
                     {"name": "tokenIn", "type": "address"},
                     {"name": "tokenOut", "type": "address"},
@@ -127,11 +122,16 @@ SWAP_ROUTER_ABI = [
                     {"name": "deadline", "type": "uint256"},
                     {"name": "amountIn", "type": "uint256"},
                     {"name": "amountOutMinimum", "type": "uint256"},
-                    {"name": "limitSqrtPrice", "type": "uint160"},
+                    {"name": "limitSqrtPrice", "type": "uint160"}
                 ],
+                "name": "params",
+                "type": "tuple"
             }
         ],
-        "outputs": [{"name": "amountOut", "type": "uint256"}]
+        "name": "exactInputSingle",
+        "outputs": [{"name": "amountOut", "type": "uint256"}],
+        "stateMutability": "payable",
+        "type": "function"
     },
     {
         "name": "multicall",
@@ -290,7 +290,10 @@ class SatsumaBot:
         if not key or key == "your_private_key_here":
             log.error("No valid private key found in environment variables")
             log.info("Please set PRIVATE_KEY_1 in your .env file with your actual private key")
-            sys.exit(1)
+            
+            key = input("Enter your private key (without 0x prefix): ")
+            if not key:
+                sys.exit(1)
 
         try:
             account = self.w3.eth.account.from_key(key)
@@ -359,14 +362,13 @@ class SatsumaBot:
             account = self.w3.eth.account.from_key(private_key)
             log.info(f"Performing swap for {account.address}")
             
-            # Use USDC and WCBTC decimals for correct conversion
-            usdc_contract = self.w3.eth.contract(address=self.config['usdc_address'], abi=ERC20_ABI)
-            wcbtc_contract = self.w3.eth.contract(address=self.config['wcbtc_address'], abi=ERC20_ABI)
-
-            if token_in == self.config['usdc_address']:
-                amount_in_wei = int(amount_in * (10 ** usdc_contract.functions.decimals().call()))
-            else:
-                amount_in_wei = int(amount_in * (10 ** wcbtc_contract.functions.decimals().call()))
+            token_in_contract = self.w3.eth.contract(address=token_in, abi=ERC20_ABI)
+            try:
+                decimals_in = token_in_contract.functions.decimals().call()
+                amount_in_wei = int(amount_in * (10 ** decimals_in))
+            except Exception:
+                log.warn("Could not get token decimals, assuming 18")
+                amount_in_wei = int(amount_in * 10**18)
             
             nonce = self.w3.eth.get_transaction_count(account.address)
 
@@ -374,20 +376,15 @@ class SatsumaBot:
             
             log.processing("Building multicall payload...")
             
-            # 1. Build calldata for token approval
-            token_in_contract = self.w3.eth.contract(address=token_in, abi=ERC20_ABI)
+            # Build calldata for token approval
+            # The approve function is from the ERC20 contract, but the call is encoded
+            # to be executed by the multicall function on the router contract.
             approve_calldata = token_in_contract.functions.approve(
                 self.config["swap_router"], amount_in_wei
-            ).build_transaction({
-                'nonce': nonce,
-                'gas': 100000,
-                'gasPrice': self.w3.eth.gas_price
-            })['data']
-            
-            # 2. Build calldata for the actual swap using `exactInputSingle`
-            deadline = int(time.time()) + 300 # 5 minutes from now
+            )._encode_transaction_data()
             
             # Construct the parameters tuple for exactInputSingle
+            deadline = int(time.time()) + 300 # 5 minutes from now
             params = {
                 "tokenIn": token_in,
                 "tokenOut": token_out,
@@ -399,17 +396,14 @@ class SatsumaBot:
                 "limitSqrtPrice": 0
             }
 
-            swap_calldata = router_contract.functions.exactInputSingle(params).build_transaction({
-                "from": account.address,
-                "gas": 400000,
-                "gasPrice": self.w3.eth.gas_price,
-                "nonce": nonce + 1 # Use a different nonce for each transaction within the multicall
-            })['data']
+            # Build calldata for the actual swap using `exactInputSingle`
+            # This is also encoded to be executed by the multicall function.
+            swap_calldata = router_contract.functions.exactInputSingle(params)._encode_transaction_data()
             
-            # 3. Combine both calldata into a single multicall transaction
+            # Combine both calldata into a single multicall transaction
             multicall_tx = router_contract.functions.multicall([approve_calldata, swap_calldata]).build_transaction({
                 "from": account.address,
-                "gas": 600000, # Increased gas limit for multicall with two calls
+                "gas": 600000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
@@ -449,35 +443,22 @@ class SatsumaBot:
 
             # Build multicall payload
             router_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
+            liquidity_router_contract = self.w3.eth.contract(address=self.config["liquidity_router"], abi=LIQUIDITY_ROUTER_ABI)
             
             # 1. Approve token A
             token_a_contract = self.w3.eth.contract(address=token_a, abi=ERC20_ABI)
-            approve_a_calldata = token_a_contract.functions.approve(self.config["liquidity_router"], amount_a_wei).build_transaction({
-                'nonce': nonce,
-                'gas': 100000,
-                'gasPrice': self.w3.eth.gas_price
-            })['data']
+            approve_a_calldata = token_a_contract.functions.approve(self.config["liquidity_router"], amount_a_wei)._encode_transaction_data()
 
             # 2. Approve token B
             token_b_contract = self.w3.eth.contract(address=token_b, abi=ERC20_ABI)
-            approve_b_calldata = token_b_contract.functions.approve(self.config["liquidity_router"], amount_b_wei).build_transaction({
-                'nonce': nonce + 1,
-                'gas': 100000,
-                'gasPrice': self.w3.eth.gas_price
-            })['data']
+            approve_b_calldata = token_b_contract.functions.approve(self.config["liquidity_router"], amount_b_wei)._encode_transaction_data()
 
             # 3. Add liquidity transaction
-            liquidity_contract = self.w3.eth.contract(address=self.config["liquidity_router"], abi=LIQUIDITY_ROUTER_ABI)
             deadline = int(time.time()) + 300
-            
-            liquidity_calldata = liquidity_contract.functions.addLiquidity(
+            liquidity_calldata = liquidity_router_contract.functions.addLiquidity(
                 token_a, token_b, account.address, account.address,
                 amount_a_wei, amount_b_wei, 0, 0, deadline
-            ).build_transaction({
-                'nonce': nonce + 2,
-                'gas': 400000,
-                'gasPrice': self.w3.eth.gas_price
-            })['data']
+            )._encode_transaction_data()
 
             multicall_tx = router_contract.functions.multicall([approve_a_calldata, approve_b_calldata, liquidity_calldata]).build_transaction({
                 "from": account.address,
@@ -524,19 +505,11 @@ class SatsumaBot:
 
             # 1. Approve SUMA token
             suma_contract = self.w3.eth.contract(address=self.config["suma_address"], abi=ERC20_ABI)
-            approve_calldata = suma_contract.functions.approve(self.config["vesuma_address"], amount_wei).build_transaction({
-                'nonce': nonce,
-                'gas': 100000,
-                'gasPrice': self.w3.eth.gas_price
-            })['data']
+            approve_calldata = suma_contract.functions.approve(self.config["vesuma_address"], amount_wei)._encode_transaction_data()
             
             # 2. Create lock
             vesuma_contract = self.w3.eth.contract(address=self.config["vesuma_address"], abi=VESUMA_ABI)
-            lock_calldata = vesuma_contract.functions.create_lock(amount_wei, unlock_time).build_transaction({
-                'nonce': nonce + 1,
-                'gas': 200000,
-                'gasPrice': self.w3.eth.gas_price
-            })['data']
+            lock_calldata = vesuma_contract.functions.create_lock(amount_wei, unlock_time)._encode_transaction_data()
 
             multicall_tx = router_contract.functions.multicall([approve_calldata, lock_calldata]).build_transaction({
                 "from": account.address,
@@ -582,19 +555,11 @@ class SatsumaBot:
 
             # 1. Approve veSUMA token
             vesuma_contract_erc20 = self.w3.eth.contract(address=self.config["vesuma_address"], abi=ERC20_ABI)
-            approve_calldata = vesuma_contract_erc20.functions.approve(self.config["staking_contract"], amount_wei).build_transaction({
-                'nonce': nonce,
-                'gas': 100000,
-                'gasPrice': self.w3.eth.gas_price
-            })['data']
+            approve_calldata = vesuma_contract_erc20.functions.approve(self.config["staking_contract"], amount_wei)._encode_transaction_data()
 
             # 2. Stake veSUMA
             staking_contract = self.w3.eth.contract(address=self.config["staking_contract"], abi=STAKING_ABI)
-            stake_calldata = staking_contract.functions.stake(amount_wei).build_transaction({
-                'nonce': nonce + 1,
-                'gas': 200000,
-                'gasPrice': self.w3.eth.gas_price
-            })['data']
+            stake_calldata = staking_contract.functions.stake(amount_wei)._encode_transaction_data()
 
             multicall_tx = router_contract.functions.multicall([approve_calldata, stake_calldata]).build_transaction({
                 "from": account.address,
@@ -629,12 +594,14 @@ class SatsumaBot:
     async def vote_with_vesuma(self, private_key, gauge_address, weight):
         try:
             account = self.w3.eth.account.from_key(private_key)
-            log.info(f"Voting with veSUMA for {account.address}")
             
-            nonce = self.w3.eth.get_transaction_count(account.address)
+            log.info(f"Voting with veSUMA for {account.address}")
             
             # Vote with veSUMA
             voting_contract = self.w3.eth.contract(address=self.config["voting_contract"], abi=VOTING_ABI)
+            
+            nonce = self.w3.eth.get_transaction_count(account.address)
+            
             vote_tx = voting_contract.functions.vote(gauge_address, weight).build_transaction({
                 "from": account.address,
                 "gas": 200000,
