@@ -109,14 +109,48 @@ ERC20_ABI = [
     }
 ]
 
-# Updated SWAP_ROUTER_ABI with only multicall, as requested
+# Updated SWAP_ROUTER_ABI with the user-provided ABI
 SWAP_ROUTER_ABI = [
     {
-        "inputs": [{"internalType": "bytes[]", "name": "data", "type": "bytes[]"}],
+        "name": "exactInputSingle",
+        "type": "function",
+        "stateMutability": "payable",
+        "inputs": [
+            {
+                "name": "params",
+                "type": "tuple",
+                "components": [
+                    {"name": "tokenIn", "type": "address"},
+                    {"name": "tokenOut", "type": "address"},
+                    {"name": "deployer", "type": "address"},
+                    {"name": "recipient", "type": "address"},
+                    {"name": "deadline", "type": "uint256"},
+                    {"name": "amountIn", "type": "uint256"},
+                    {"name": "amountOutMinimum", "type": "uint256"},
+                    {"name": "limitSqrtPrice", "type": "uint160"},
+                ],
+            }
+        ],
+        "outputs": [{"name": "amountOut", "type": "uint256"}]
+    },
+    {
         "name": "multicall",
-        "outputs": [{"internalType": "bytes[]", "name": "results", "type": "bytes[]"}],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        "type": "function",
+        "stateMutability": "payable",
+        "inputs": [
+            {
+                "internalType": "bytes[]",
+                "name": "data",
+                "type": "bytes[]"
+            }
+        ],
+        "outputs": [
+            {
+                "internalType": "bytes[]",
+                "name": "results",
+                "type": "bytes[]"
+            }
+        ]
     }
 ]
 
@@ -362,45 +396,52 @@ class SatsumaBot:
             account = self.w3.eth.account.from_key(private_key)
             log.info(f"Performing swap for {account.address}")
             
-            amount_in_wei = self.w3.to_wei(amount_in, 'ether')
+            # Use USDC and WCBTC decimals for correct conversion
+            usdc_contract = self.w3.eth.contract(address=self.config['usdc_address'], abi=ERC20_ABI)
+            wcbtc_contract = self.w3.eth.contract(address=self.config['wcbtc_address'], abi=ERC20_ABI)
+
+            if token_in == self.config['usdc_address']:
+                amount_in_wei = int(amount_in * (10 ** usdc_contract.functions.decimals().call()))
+            else:
+                amount_in_wei = int(amount_in * (10 ** wcbtc_contract.functions.decimals().call()))
+            
             nonce = self.w3.eth.get_transaction_count(account.address)
 
-            # Build multicall payload
+            # Approve the swap router to spend the token
+            approve_result = await self.approve_token(account, token_in, self.config['swap_router'], amount_in_wei, nonce)
+            if not approve_result['success']:
+                log.error("Approval failed, cannot proceed with swap.")
+                return {"success": False, "error": "Approval failed"}
+
+            nonce = approve_result['nonce']
+
+            # Use the exactInputSingle function from the user-provided ABI
             router_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
             
-            # 1. Approve transaction
-            token_in_contract = self.w3.eth.contract(address=token_in, abi=ERC20_ABI)
-            approve_calldata = token_in_contract.functions.approve(self.config["swap_router"], amount_in_wei).build_transaction({
-                'nonce': nonce,
-                'gas': 100000,
-                'gasPrice': self.w3.eth.gas_price
-            })['data']
+            log.processing("Sending swap transaction with exactInputSingle...")
 
-            # 2. Swap transaction - THIS PART NEEDS TO BE UPDATED WITH THE CORRECT SWAP FUNCTION
-            # Example calldata, you must replace this with the actual swap function from the DEX
-            # For example, if the function is `swapExactTokensForTokens`, it would look like this:
-            #
-            # swap_calldata = router_contract.functions.swapExactTokensForTokens(
-            #     amount_in_wei, 0, [token_in, token_out], account.address, deadline
-            # ).build_transaction({
-            #     'nonce': nonce + 1,
-            #     'gas': 300000,
-            #     'gasPrice': self.w3.eth.gas_price
-            # })['data']
-            #
-            # Replace the placeholder below with the actual calldata for the new swap method.
-            swap_calldata = b'' 
-            log.warn("Placeholder for swap calldata. Please provide the correct calldata for the DEX's new swap function.")
-
-            # Combine into a single multicall transaction
-            multicall_tx = router_contract.functions.multicall([approve_calldata, swap_calldata]).build_transaction({
+            deadline = int(time.time()) + 300 # 5 minutes from now
+            
+            # Construct the parameters tuple for exactInputSingle
+            params = {
+                "tokenIn": token_in,
+                "tokenOut": token_out,
+                "deployer": account.address,  # Assuming deployer is the same as recipient for this testnet
+                "recipient": account.address,
+                "deadline": deadline,
+                "amountIn": amount_in_wei,
+                "amountOutMinimum": 0,
+                "limitSqrtPrice": 0
+            }
+            
+            swap_tx = router_contract.functions.exactInputSingle(params).build_transaction({
                 "from": account.address,
-                "gas": 400000, # Increased gas limit for multicall
+                "gas": 400000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce
             })
             
-            signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
+            signed_tx = self.w3.eth.account.sign_transaction(swap_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
             log.processing("Waiting for swap confirmation...")
@@ -791,8 +832,11 @@ class SatsumaBot:
                 print(f"USDC: {self.config['usdc_address']}")
                 print(f"WCBTC: {self.config['wcbtc_address']}")
                 
-                token_in = input("Enter token in address: ").strip()
-                token_out = input("Enter token out address: ").strip()
+                token_in_input = input("Enter token in address (or 'usdc'/'wcbtc'): ").strip()
+                token_out_input = input("Enter token out address (or 'usdc'/'wcbtc'): ").strip()
+
+                token_in = self.config['usdc_address'] if token_in_input.lower() == 'usdc' else self.config['wcbtc_address'] if token_in_input.lower() == 'wcbtc' else Web3.to_checksum_address(token_in_input)
+                token_out = self.config['usdc_address'] if token_out_input.lower() == 'usdc' else self.config['wcbtc_address'] if token_out_input.lower() == 'wcbtc' else Web3.to_checksum_address(token_out_input)
                 
                 try:
                     amount = float(input("Enter amount: "))
@@ -805,7 +849,7 @@ class SatsumaBot:
                     else:
                         log.error("Amount must be positive")
                 except ValueError:
-                    log.error("Invalid amount")
+                    log.error("Invalid amount or address")
             
             elif option == "4":
                 print(f"\n{Colors.CYAN}=== Add Liquidity ==={Colors.RESET}")
