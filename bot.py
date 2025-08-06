@@ -383,21 +383,20 @@ class SatsumaBot:
                 self.config["swap_router"], amount_in_wei
             )._encode_transaction_data()
             
-            # Construct the parameters tuple for exactInputSingle
+            # Construct the parameters tuple as a list for exactInputSingle
             deadline = int(time.time()) + 300 # 5 minutes from now
-            params = {
-                "tokenIn": token_in,
-                "tokenOut": token_out,
-                "deployer": account.address,
-                "recipient": account.address,
-                "deadline": deadline,
-                "amountIn": amount_in_wei,
-                "amountOutMinimum": 0,
-                "limitSqrtPrice": 0
-            }
+            params = [
+                token_in,
+                token_out,
+                account.address, # deployer
+                account.address, # recipient
+                deadline,
+                amount_in_wei,
+                0, # amountOutMinimum
+                0  # limitSqrtPrice
+            ]
 
             # Build calldata for the actual swap using `exactInputSingle`
-            # This is also encoded to be executed by the multicall function.
             swap_calldata = router_contract.functions.exactInputSingle(params)._encode_transaction_data()
             
             # Combine both calldata into a single multicall transaction
