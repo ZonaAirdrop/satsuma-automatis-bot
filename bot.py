@@ -462,12 +462,12 @@ class SatsumaBot:
             swap_params = {
                 "tokenIn": token_in,
                 "tokenOut": token_out,
-                "deployer": account.address,
+                "fee": 3000, # Menambahkan parameter 'fee' yang hilang
                 "recipient": account.address,
                 "deadline": deadline,
                 "amountIn": amount_in_wei,
                 "amountOutMinimum": 0,
-                "limitSqrtPrice": 0
+                "sqrtPriceLimitX96": 0
             }
             
             nonce = approval_result["nonce"]
