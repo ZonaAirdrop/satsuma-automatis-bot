@@ -518,31 +518,28 @@ class SatsumaBot:
                 0,
                 0
             )
-            
-            # Encode the single swap call
-            swap_calldata = swap_contract.functions.exactInputSingle(swap_params)._encode_transaction_data()
-            
+
             nonce = approval_result["nonce"]
             
-            multicall_tx = swap_contract.functions.multicall([swap_calldata]).build_transaction({
+            swap_tx = swap_contract.functions.exactInputSingle(swap_params).build_transaction({
                 "from": account.address,
                 "gas": 300000,
                 "gasPrice": self.w3.eth.gas_price,
-                "nonce": nonce
+                "nonce": nonce,
+                "value": 0  # Pastikan tidak ada ETH/cBTC yang dikirim
             })
 
             # --- Simulasikan transaksi sebelum mengirim ---
             try:
                 log.processing("Simulating transaction...")
-                multicall_tx['value'] = 0 # No value is sent for a token-to-token swap
-                self.w3.eth.call(multicall_tx, block_identifier='latest')
+                self.w3.eth.call(swap_tx, block_identifier='latest')
                 log.success("Simulation successful. Transaction is likely to pass.")
             except Exception as e:
                 log.error(f"Transaction simulation failed. Reason: {str(e)}")
                 return {"success": False, "error": str(e)}
 
             # Send the transaction
-            signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
+            signed_tx = self.w3.eth.account.sign_transaction(swap_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             
             log.processing("Waiting for swap confirmation...")
